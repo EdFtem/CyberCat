@@ -1,4 +1,6 @@
-/** Робота зі шляхами у renderer: POSIX для сервера, win32 або POSIX для локальної ФС */
+/** Path handling in the renderer: POSIX for the server, win32 or POSIX for the local file system */
+
+import { tr } from './i18n'
 
 export interface PathLib {
   sep: string
@@ -111,7 +113,7 @@ export const winPath: PathLib = {
   },
   segments(p) {
     const n = winPath.normalize(p)
-    const out = [{ label: 'Цей ПК', path: '' }]
+    const out = [{ label: tr().pane.thisPc, path: '' }]
     if (n === '') return out
     const drive = /^[a-zA-Z]:/.exec(n)?.[0]
     if (drive) {

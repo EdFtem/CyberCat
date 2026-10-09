@@ -43,7 +43,7 @@ export interface AppInfo {
   sep: string
 }
 
-/** Контракт між preload (window.api) та renderer */
+/** Contract between preload (window.api) and the renderer */
 export interface Api {
   app: {
     info(): Promise<AppInfo>
@@ -146,7 +146,7 @@ export interface Api {
     volumeAction(sessionId: string, name: string, action: 'rm', force?: boolean): Promise<string>
     diskUsage(sessionId: string): Promise<DockerDiskUsage[]>
     prune(sessionId: string, what: 'images' | 'volumes' | 'containers' | 'system'): Promise<string>
-    /** Запускає docker logs -f і повертає tailId для LogView */
+    /** Starts docker logs -f and returns a tailId for LogView */
     logs(sessionId: string, id: string, tail?: number): Promise<string>
     shellCommand(sessionId: string, id: string): Promise<string>
     composeCommand(sessionId: string, project: string, dir: string | undefined, files: string[] | undefined, action: string): Promise<string>

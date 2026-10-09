@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import '@xterm/xterm/css/xterm.css';
 
-/* ---------- Токени теми ---------- */
+/* ---------- Theme tokens ---------- */
 :root,
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -89,7 +89,7 @@
   --radius-lg: 12px;
 }
 
-/* ---------- База ---------- */
+/* ---------- Base ---------- */
 html,
 body,
 #root {
@@ -148,7 +148,7 @@ textarea {
   -webkit-app-region: no-drag;
 }
 
-/* ---------- Компоненти ---------- */
+/* ---------- Components ---------- */
 @layer components {
 .btn {
   @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 h-8 text-[13px] font-medium transition-colors select-none whitespace-nowrap;

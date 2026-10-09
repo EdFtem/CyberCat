@@ -3,11 +3,14 @@ import { useApp } from '@/store/app'
 import { formatBytes, formatEta, formatSpeed } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import type { TransferItem } from '@shared/types'
+import type { Messages } from '@shared/i18n'
+import { useT } from '@/lib/i18n'
 import { Button, IconButton, EmptyState, Spinner } from '../ui'
 
 const api = window.api
 
 export function TransfersPanel() {
+  const t = useT()
   const transfers = useApp((s) => s.transfers)
   const setOpen = useApp((s) => s.setTransfersOpen)
   const items = [...transfers.items].reverse()
@@ -19,9 +22,9 @@ export function TransfersPanel() {
   return (
     <div className="flex flex-col h-[260px] shrink-0 border-t border-border bg-surface">
       <div className="flex items-center gap-3 px-3 h-9 border-b border-border">
-        <span className="text-[13px] font-medium">Передачі</span>
+        <span className="text-[13px] font-medium">{t.transfers.title}</span>
         <span className="text-[12px] text-dim">
-          {pending ? `${pending} в черзі` : 'черга порожня'}
+          {pending ? t.transfers.queued(pending) : t.transfers.queueEmpty}
           {transfers.totalSpeed > 0 && ` · ${formatSpeed(transfers.totalSpeed)}`}
         </span>
         {totalBytes > 0 && pending > 0 && (
@@ -34,17 +37,17 @@ export function TransfersPanel() {
         )}
         <span className="flex-1" />
         <Button size="sm" variant="ghost" icon={<Ban size={13} />} disabled={!pending} onClick={() => void api.transfer.cancelAll()}>
-          Скасувати всі
+          {t.transfers.cancelAll}
         </Button>
         <Button size="sm" variant="ghost" icon={<Eraser size={13} />} disabled={!finished} onClick={() => void api.transfer.clearFinished()}>
-          Очистити завершені
+          {t.transfers.clearFinished}
         </Button>
-        <IconButton title="Згорнути" onClick={() => setOpen(false)}>
+        <IconButton title={t.transfers.collapse} onClick={() => setOpen(false)}>
           <ChevronDown size={16} />
         </IconButton>
       </div>
       <div className="flex-1 overflow-auto">
-        {!items.length && <EmptyState title="Передач ще не було" description="Перетягніть файли між панелями або натисніть F5 на вибраних файлах." />}
+        {!items.length && <EmptyState title={t.transfers.emptyTitle} description={t.transfers.emptyDescription} />}
         {items.map((it) => (
           <TransferRow key={it.id} it={it} />
         ))}
@@ -53,34 +56,35 @@ export function TransfersPanel() {
   )
 }
 
-function statusLabel(it: TransferItem): { text: string; tone: string; icon?: React.ReactNode } {
+function statusLabel(it: TransferItem, t: Messages): { text: string; tone: string; icon?: React.ReactNode } {
   switch (it.status) {
     case 'running':
-      return { text: 'Передається', tone: 'text-accent', icon: <Spinner size={12} /> }
+      return { text: t.transfers.status.running, tone: 'text-accent', icon: <Spinner size={12} /> }
     case 'queued':
-      return { text: 'У черзі', tone: 'text-dim' }
+      return { text: t.transfers.status.queued, tone: 'text-dim' }
     case 'paused':
-      return { text: 'Пауза', tone: 'text-warning', icon: <Pause size={12} /> }
+      return { text: t.transfers.status.paused, tone: 'text-warning', icon: <Pause size={12} /> }
     case 'done':
-      return { text: 'Готово', tone: 'text-success', icon: <CircleCheck size={12} /> }
+      return { text: t.transfers.status.done, tone: 'text-success', icon: <CircleCheck size={12} /> }
     case 'error':
-      return { text: it.error ?? 'Помилка', tone: 'text-danger', icon: <CircleX size={12} /> }
+      return { text: it.error ?? t.transfers.status.error, tone: 'text-danger', icon: <CircleX size={12} /> }
     case 'cancelled':
-      return { text: 'Скасовано', tone: 'text-dim', icon: <Ban size={12} /> }
+      return { text: t.transfers.status.cancelled, tone: 'text-dim', icon: <Ban size={12} /> }
     case 'skipped':
-      return { text: 'Пропущено', tone: 'text-dim', icon: <SkipForward size={12} /> }
+      return { text: t.transfers.status.skipped, tone: 'text-dim', icon: <SkipForward size={12} /> }
     default:
       return { text: it.status, tone: 'text-dim' }
   }
 }
 
 function TransferRow({ it }: { it: TransferItem }) {
+  const t = useT()
   const pct = it.size > 0 ? Math.min(100, (it.transferred / it.size) * 100) : it.status === 'done' ? 100 : 0
-  const st = statusLabel(it)
+  const st = statusLabel(it, t)
   const active = it.status === 'running' || it.status === 'paused'
   return (
     <div className="grid grid-cols-[20px_minmax(0,1fr)_200px_auto] items-center gap-3 px-3 h-12 border-b border-border/60 row-hover">
-      <span className={cn('inline-flex', it.direction === 'upload' ? 'text-accent' : 'text-success')} title={it.direction === 'upload' ? 'Відвантаження' : 'Завантаження'}>
+      <span className={cn('inline-flex', it.direction === 'upload' ? 'text-accent' : 'text-success')} title={it.direction === 'upload' ? t.transfers.upload : t.transfers.download}>
         {it.direction === 'upload' ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
       </span>
       <div className="min-w-0">
@@ -118,32 +122,32 @@ function TransferRow({ it }: { it: TransferItem }) {
       </div>
       <div className="flex items-center gap-0.5">
         {it.status === 'running' && (
-          <IconButton title="Пауза" size={26} onClick={() => void api.transfer.pause(it.id)}>
+          <IconButton title={t.transfers.pause} size={26} onClick={() => void api.transfer.pause(it.id)}>
             <Pause size={14} />
           </IconButton>
         )}
         {it.status === 'queued' && (
-          <IconButton title="Відкласти" size={26} onClick={() => void api.transfer.pause(it.id)}>
+          <IconButton title={t.transfers.postpone} size={26} onClick={() => void api.transfer.pause(it.id)}>
             <Pause size={14} />
           </IconButton>
         )}
         {it.status === 'paused' && (
-          <IconButton title="Продовжити" size={26} onClick={() => void api.transfer.resume(it.id)}>
+          <IconButton title={t.transfers.resume} size={26} onClick={() => void api.transfer.resume(it.id)}>
             <Play size={14} />
           </IconButton>
         )}
         {(it.status === 'error' || it.status === 'cancelled' || it.status === 'skipped') && (
-          <IconButton title="Повторити" size={26} onClick={() => void api.transfer.retry(it.id)}>
+          <IconButton title={t.common.retry} size={26} onClick={() => void api.transfer.retry(it.id)}>
             <RotateCcw size={14} />
           </IconButton>
         )}
         {(active || it.status === 'queued') && (
-          <IconButton title="Скасувати" size={26} danger onClick={() => void api.transfer.cancel(it.id)}>
+          <IconButton title={t.common.cancel} size={26} danger onClick={() => void api.transfer.cancel(it.id)}>
             <X size={14} />
           </IconButton>
         )}
         {!active && it.status !== 'queued' && (
-          <IconButton title="Прибрати зі списку" size={26} onClick={() => void api.transfer.remove(it.id)}>
+          <IconButton title={t.transfers.remove} size={26} onClick={() => void api.transfer.remove(it.id)}>
             <X size={14} />
           </IconButton>
         )}

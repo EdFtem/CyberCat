@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import { Copy, TerminalSquare } from 'lucide-react'
 import { useApp } from '@/store/app'
 import type { ExecOutput } from '@shared/types'
+import { useT } from '@/lib/i18n'
 import { Badge, Button, Modal, Spinner } from '../ui'
 
-/** Виконує користувацьку команду на сервері і показує її вивід */
+/** Runs a custom command on the server and shows its output */
 export function CommandDialog({ sessionId, title, cmd, close }: { sessionId: string; title: string; cmd: string; close: () => void }) {
+  const t = useT()
   const refresh = useApp((s) => s.refresh)
   const [out, setOut] = useState<ExecOutput | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -36,14 +38,14 @@ export function CommandDialog({ sessionId, title, cmd, close }: { sessionId: str
       footer={
         <>
           <span className="mr-auto">
-            {out && (out.code === 0 ? <Badge tone="success">код 0</Badge> : <Badge tone="danger">код {out.code}</Badge>)}
-            {!out && !error && <Badge tone="accent">виконується</Badge>}
+            {out && <Badge tone={out.code === 0 ? 'success' : 'danger'}>{t.command.exitCode(out.code)}</Badge>}
+            {!out && !error && <Badge tone="accent">{t.command.statusRunning}</Badge>}
           </span>
           <Button icon={<Copy size={14} />} onClick={() => void navigator.clipboard.writeText(text)} disabled={!text}>
-            Копіювати вивід
+            {t.command.copyOutput}
           </Button>
           <Button variant="primary" onClick={close}>
-            Закрити
+            {t.common.close}
           </Button>
         </>
       }
@@ -51,7 +53,7 @@ export function CommandDialog({ sessionId, title, cmd, close }: { sessionId: str
       <div className="rounded-md border border-border bg-[var(--terminal-bg)] text-[#e6eaf0] font-mono text-[12px] leading-5 p-3 min-h-[160px] max-h-[460px] overflow-auto whitespace-pre-wrap break-words select-text">
         {!out && !error && (
           <span className="inline-flex items-center gap-2 text-[#9aa8bb]">
-            <Spinner size={14} /> <TerminalSquare size={14} /> Виконуємо…
+            <Spinner size={14} /> <TerminalSquare size={14} /> {t.command.running}
           </span>
         )}
         {error && <span className="text-danger">{error}</span>}
@@ -59,7 +61,7 @@ export function CommandDialog({ sessionId, title, cmd, close }: { sessionId: str
           <>
             {out.stdout}
             {out.stderr && <span className="text-warning">{out.stderr}</span>}
-            {!out.stdout && !out.stderr && <span className="text-[#647389]">(без виводу)</span>}
+            {!out.stdout && !out.stderr && <span className="text-[#647389]">{t.command.noOutput}</span>}
           </>
         )}
       </div>

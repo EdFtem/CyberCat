@@ -3,6 +3,7 @@ import { Fingerprint, ShieldAlert, ShieldCheck, KeyRound, Lock, FileWarning } fr
 import { useApp } from '@/store/app'
 import { Button, Checkbox, Field, Modal } from './ui'
 import { formatBytes, formatDate } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import type {
   AuthPrompt,
   HostKeyPrompt,
@@ -37,19 +38,20 @@ export function PromptHost() {
 type Done = (a: unknown) => void
 
 function HostKeyDialog({ p, done }: { p: HostKeyPrompt; done: Done }) {
+  const t = useT()
   const changed = p.status === 'changed'
   const [remember, setRemember] = useState(!changed)
   return (
     <Modal
-      title={changed ? 'Ключ сервера змінився' : 'Невідомий сервер'}
+      title={changed ? t.prompts.hostKey.changedTitle : t.prompts.hostKey.unknownTitle}
       subtitle={`${p.host}:${p.port}`}
       width={520}
       closable={false}
       footer={
         <>
-          <Button onClick={() => done({ accept: false, remember: false })}>Відхилити</Button>
+          <Button onClick={() => done({ accept: false, remember: false })}>{t.prompts.hostKey.reject}</Button>
           <Button variant={changed ? 'danger' : 'primary'} onClick={() => done({ accept: true, remember })} data-autofocus>
-            {changed ? 'Усе одно підключитися' : 'Підключитися'}
+            {changed ? t.prompts.hostKey.connectAnyway : t.prompts.hostKey.connect}
           </Button>
         </>
       }
@@ -58,22 +60,20 @@ function HostKeyDialog({ p, done }: { p: HostKeyPrompt; done: Done }) {
         <div className={changed ? 'text-danger' : 'text-accent'}>{changed ? <ShieldAlert size={36} /> : <ShieldCheck size={36} />}</div>
         <div className="min-w-0 flex-1 space-y-3">
           <p className="text-[13px] text-muted">
-            {changed
-              ? 'Відбиток ключа відрізняється від збереженого. Це може означати перевстановлення сервера або атаку посередника. Продовжуйте, лише якщо впевнені.'
-              : 'Ви підключаєтесь уперше. Перевірте відбиток ключа з адміністратором сервера, щоб переконатися, що це справжній сервер.'}
+            {changed ? t.prompts.hostKey.changedMessage : t.prompts.hostKey.unknownMessage}
           </p>
           <div className="rounded-md bg-surface-2 border border-border p-3 space-y-1.5">
-            <Row label="Тип ключа">{p.keyType}</Row>
-            <Row label="Відбиток">
+            <Row label={t.prompts.hostKey.keyType}>{p.keyType}</Row>
+            <Row label={t.prompts.hostKey.fingerprint}>
               <span className="font-mono text-[12px] break-all select-text">{p.fingerprint}</span>
             </Row>
             {p.previousFingerprint && (
-              <Row label="Було">
+              <Row label={t.prompts.hostKey.previous}>
                 <span className="font-mono text-[12px] break-all text-dim select-text">{p.previousFingerprint}</span>
               </Row>
             )}
           </div>
-          <Checkbox checked={remember} onChange={setRemember} label={changed ? 'Замінити збережений ключ' : 'Запам’ятати ключ для цього сервера'} />
+          <Checkbox checked={remember} onChange={setRemember} label={changed ? t.prompts.hostKey.replaceKey : t.prompts.hostKey.rememberKey} />
         </div>
       </div>
     </Modal>
@@ -81,20 +81,21 @@ function HostKeyDialog({ p, done }: { p: HostKeyPrompt; done: Done }) {
 }
 
 function PasswordDialog({ p, done }: { p: PasswordPrompt; done: Done }) {
+  const t = useT()
   const [password, setPassword] = useState('')
   const [save, setSave] = useState(false)
   const submit = (): void => done({ password, save })
   return (
     <Modal
-      title={p.reason ? 'Пароль sudo' : 'Введіть пароль'}
+      title={p.reason ? t.prompts.password.sudoTitle : t.prompts.password.title}
       subtitle={`${p.username}@${p.host}`}
       width={420}
       onClose={() => done({ password: null, save: false })}
       footer={
         <>
-          <Button onClick={() => done({ password: null, save: false })}>Скасувати</Button>
+          <Button onClick={() => done({ password: null, save: false })}>{t.common.cancel}</Button>
           <Button variant="primary" onClick={submit} disabled={!password}>
-            {p.reason ? 'Продовжити' : 'Підключитися'}
+            {p.reason ? t.common.continue : t.prompts.password.connect}
           </Button>
         </>
       }
@@ -106,32 +107,33 @@ function PasswordDialog({ p, done }: { p: PasswordPrompt; done: Done }) {
         }}
         className="space-y-3"
       >
-        {p.reason && <p className={`text-[12.5px] ${/невірний/i.test(p.reason) ? 'text-danger' : 'text-muted'}`}>{p.reason}</p>}
-        <Field label="Пароль">
+        {p.reason && <p className={`text-[12.5px] ${p.retry ? 'text-danger' : 'text-muted'}`}>{p.reason}</p>}
+        <Field label={t.prompts.password.label}>
           <div className="relative">
             <Lock size={14} className="absolute left-2.5 top-2.5 text-dim" />
             <input className="input pl-8" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
           </div>
         </Field>
-        {p.canSave && <Checkbox checked={save} onChange={setSave} label="Зберегти пароль у профілі (зашифровано системою)" />}
+        {p.canSave && <Checkbox checked={save} onChange={setSave} label={t.prompts.password.save} />}
       </form>
     </Modal>
   )
 }
 
 function PassphraseDialog({ p, done }: { p: PassphrasePrompt; done: Done }) {
+  const t = useT()
   const [v, setV] = useState('')
   return (
     <Modal
-      title="Ключ захищено паролем"
+      title={t.prompts.passphrase.title}
       subtitle={p.keyPath}
       width={420}
       onClose={() => done({ passphrase: null })}
       footer={
         <>
-          <Button onClick={() => done({ passphrase: null })}>Скасувати</Button>
+          <Button onClick={() => done({ passphrase: null })}>{t.common.cancel}</Button>
           <Button variant="primary" onClick={() => done({ passphrase: v })} disabled={!v}>
-            Розблокувати
+            {t.prompts.passphrase.unlock}
           </Button>
         </>
       }
@@ -142,7 +144,7 @@ function PassphraseDialog({ p, done }: { p: PassphrasePrompt; done: Done }) {
           if (v) done({ passphrase: v })
         }}
       >
-        <Field label="Passphrase ключа">
+        <Field label={t.prompts.passphrase.label}>
           <div className="relative">
             <KeyRound size={14} className="absolute left-2.5 top-2.5 text-dim" />
             <input className="input pl-8" type="password" value={v} onChange={(e) => setV(e.target.value)} autoFocus />
@@ -154,19 +156,20 @@ function PassphraseDialog({ p, done }: { p: PassphrasePrompt; done: Done }) {
 }
 
 function AuthDialog({ p, done }: { p: AuthPrompt; done: Done }) {
+  const t = useT()
   const [values, setValues] = useState<string[]>(p.prompts.map(() => ''))
   const submit = (): void => done({ responses: values })
   return (
     <Modal
-      title={p.name || 'Додаткова автентифікація'}
+      title={p.name || t.prompts.auth.title}
       subtitle={`${p.username}@${p.host}`}
       width={440}
       onClose={() => done({ responses: null })}
       footer={
         <>
-          <Button onClick={() => done({ responses: null })}>Скасувати</Button>
+          <Button onClick={() => done({ responses: null })}>{t.common.cancel}</Button>
           <Button variant="primary" onClick={submit}>
-            Продовжити
+            {t.common.continue}
           </Button>
         </>
       }
@@ -180,7 +183,7 @@ function AuthDialog({ p, done }: { p: AuthPrompt; done: Done }) {
       >
         {p.instructions && <p className="text-[12.5px] text-muted whitespace-pre-wrap">{p.instructions}</p>}
         <div className="flex items-center gap-2 text-[12px] text-dim">
-          <Fingerprint size={14} /> Сервер вимагає відповідь на запит (пароль, код 2FA тощо)
+          <Fingerprint size={14} /> {t.prompts.auth.info}
         </div>
         {p.prompts.map((pr, i) => (
           <Field key={i} label={pr.prompt.replace(/:\s*$/, '')}>
@@ -199,25 +202,26 @@ function AuthDialog({ p, done }: { p: AuthPrompt; done: Done }) {
 }
 
 function OverwriteDialog({ p, done }: { p: OverwritePrompt; done: Done }) {
+  const t = useT()
   const [all, setAll] = useState(false)
   const name = p.dst.split(/[\\/]/).pop()
   const newer = p.srcMtime > p.dstMtime
   return (
     <Modal
-      title="Файл уже існує"
+      title={t.prompts.overwrite.title}
       subtitle={name}
       width={540}
       closable={false}
       footer={
         <>
-          <Checkbox checked={all} onChange={setAll} label="Застосувати до всіх" className="mr-auto" />
-          <Button onClick={() => done({ action: 'cancel', applyToAll: false })}>Скасувати</Button>
-          <Button onClick={() => done({ action: 'skip', applyToAll: all })}>Пропустити</Button>
+          <Checkbox checked={all} onChange={setAll} label={t.prompts.overwrite.applyToAll} className="mr-auto" />
+          <Button onClick={() => done({ action: 'cancel', applyToAll: false })}>{t.common.cancel}</Button>
+          <Button onClick={() => done({ action: 'skip', applyToAll: all })}>{t.prompts.overwrite.skip}</Button>
           {p.canResume && (
-            <Button onClick={() => done({ action: 'resume', applyToAll: all })}>Дописати</Button>
+            <Button onClick={() => done({ action: 'resume', applyToAll: all })}>{t.prompts.overwrite.resume}</Button>
           )}
           <Button variant="primary" onClick={() => done({ action: 'overwrite', applyToAll: all })} data-autofocus>
-            Перезаписати
+            {t.prompts.overwrite.overwrite}
           </Button>
         </>
       }
@@ -225,18 +229,19 @@ function OverwriteDialog({ p, done }: { p: OverwritePrompt; done: Done }) {
       <div className="flex gap-3">
         <FileWarning size={32} className="text-warning shrink-0" />
         <div className="grid grid-cols-2 gap-3 flex-1 min-w-0">
-          <FileCard title={p.direction === 'upload' ? 'Локальний (джерело)' : 'На сервері (джерело)'} path={p.src} size={p.srcSize} mtime={p.srcMtime} highlight={newer} />
-          <FileCard title={p.direction === 'upload' ? 'На сервері (існує)' : 'Локальний (існує)'} path={p.dst} size={p.dstSize} mtime={p.dstMtime} highlight={!newer} />
+          <FileCard title={p.direction === 'upload' ? t.prompts.overwrite.localSource : t.prompts.overwrite.serverSource} path={p.src} size={p.srcSize} mtime={p.srcMtime} highlight={newer} />
+          <FileCard title={p.direction === 'upload' ? t.prompts.overwrite.serverExisting : t.prompts.overwrite.localExisting} path={p.dst} size={p.dstSize} mtime={p.dstMtime} highlight={!newer} />
         </div>
       </div>
       {p.canResume && (
-        <p className="text-[12px] text-dim mt-3">Файл призначення менший за джерело. «Дописати» продовжить передачу з поточного розміру.</p>
+        <p className="text-[12px] text-dim mt-3">{t.prompts.overwrite.resumeHint}</p>
       )}
     </Modal>
   )
 }
 
 function FileCard({ title, path, size, mtime, highlight }: { title: string; path: string; size: number; mtime: number; highlight: boolean }) {
+  const t = useT()
   return (
     <div className="rounded-md bg-surface-2 border border-border p-3 min-w-0">
       <div className="text-[11px] uppercase tracking-wide text-dim mb-1">{title}</div>
@@ -246,7 +251,7 @@ function FileCard({ title, path, size, mtime, highlight }: { title: string; path
       <div className="mt-2 text-[13px]">{formatBytes(size)}</div>
       <div className={`text-[12px] ${highlight ? 'text-accent' : 'text-muted'}`}>
         {formatDate(mtime)}
-        {highlight && ' · новіший'}
+        {highlight && ` · ${t.prompts.overwrite.newer}`}
       </div>
     </div>
   )

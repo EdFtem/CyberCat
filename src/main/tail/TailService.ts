@@ -7,6 +7,7 @@ import { sessions } from '../ssh/SessionManager'
 import type { Session } from '../ssh/Session'
 import { getFs } from '../fs'
 import { shq } from '../fs/sftpUtil'
+import { tr } from '../i18n'
 import type { TailData, TailExit, Target } from '@shared/types'
 
 const INITIAL_BYTES = 256 * 1024
@@ -23,7 +24,7 @@ interface Tail {
   stopped: boolean
 }
 
-/** Живий перегляд файлу: tail -F через shell або опитування через SFTP чи локальну ФС */
+/** Live file view: tail -F over the shell, or polling over SFTP or the local file system */
 class TailService {
   private tails = new Map<string, Tail>()
 
@@ -56,7 +57,7 @@ class TailService {
     bus.emit('tail:exit', payload)
   }
 
-  /** Накопичений вміст, щоб UI міг підхопити все, що прийшло до підписки */
+  /** Buffered content so the UI can pick up everything that arrived before it subscribed */
   snapshot(id: string): { text: string; seq: number } {
     const t = this.tails.get(id)
     if (!t) return { text: '', seq: 0 }
@@ -81,22 +82,22 @@ class TailService {
     }
   }
 
-  /** Довільна команда з потоковим виводом (наприклад docker logs -f) */
+  /** Arbitrary command with streaming output (e.g. docker logs -f) */
   async startCommand(sessionId: string, cmd: string): Promise<string> {
     const session = sessions.require(sessionId)
-    if (!session.info.hasShell) throw new Error('Потрібен доступ до shell на сервері')
+    if (!session.info.hasShell) throw new Error(tr().main.exec.shellRequired)
     const id = randomUUID()
     const rec: Tail = { sessionId, chunks: [], bytes: 0, nextSeq: 1, stop: () => {}, stopped: false }
     this.tails.set(id, rec)
     const ok = await this.startExec(id, rec, session, cmd, 0, true)
     if (!ok) {
       this.tails.delete(id)
-      throw new Error('Команда завершилась одразу після запуску')
+      throw new Error(tr().main.tail.exitedImmediately)
     }
     return id
   }
 
-  /** tail -F у pty: закриття каналу надсилає SIGHUP і процес завершується */
+  /** tail -F in a pty: closing the channel sends SIGHUP and the process exits */
   private startExec(id: string, rec: Tail, session: Session, path: string, lines: number, rawCommand = false): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       session
@@ -119,7 +120,7 @@ class TailService {
             const tail = decoder.end()
             if (tail) this.push(id, tail)
             if (!decided) {
-              // Команда завершилась одразу: tail відсутній або файл недоступний, переходимо на опитування
+              // The command exited immediately: tail is missing or the file is unreadable, fall back to polling
               clearTimeout(timer)
               decided = true
               rec.chunks = []
@@ -127,10 +128,10 @@ class TailService {
               resolve(false)
               return
             }
-            this.finish(id, code && code !== 0 && code !== 129 ? `tail завершився з кодом ${code}` : undefined)
+            this.finish(id, code && code !== 0 && code !== 129 ? tr().main.exec.exitCode('tail', code) : undefined)
           })
           stream.on('error', () => {
-            /* обробляється через close */
+            /* handled via close */
           })
           rec.stop = () => {
             try {
@@ -141,7 +142,7 @@ class TailService {
             this.finish(id)
           }
           if (!gotData) {
-            /* чекаємо таймер або close */
+            /* wait for the timer or close */
           }
         })
         .catch(() => resolve(false))
@@ -151,7 +152,7 @@ class TailService {
   private async startPoll(id: string, rec: Tail, target: Target, path: string, lines: number): Promise<void> {
     const fs = getFs(target)
     const st = await fs.stat(path)
-    if (st.isDir) throw new Error('Це тека, а не файл')
+    if (st.isDir) throw new Error(tr().main.fs.isFolder)
     let offset = Math.max(0, st.size - INITIAL_BYTES)
     const initial = (await fs.readRange(path, offset, st.size - offset)).toString('utf8')
     let text = initial
@@ -174,7 +175,7 @@ class TailService {
         const s = await fs.stat(path)
         if (s.size < offset) {
           offset = 0
-          this.push(id, '\n[файл обрізано або замінено]\n')
+          this.push(id, `\n${tr().main.tail.truncated}\n`)
         }
         if (s.size > offset) {
           const len = Math.min(s.size - offset, CHUNK_MAX)

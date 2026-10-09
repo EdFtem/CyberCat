@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Eye, GitCompareArrows, Minus, Scale } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { pathLib } from '@/lib/paths'
-import { formatBytes, formatDate, countLabel } from '@/lib/format'
+import { formatBytes, formatDate } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/cn'
 import type { CompareEntry, CompareResult, TransferSource } from '@shared/types'
+import type { Messages } from '@shared/i18n'
 import { Badge, Button, Checkbox, Field, Modal, Segmented, Spinner } from '../ui'
 
 type Direction = 'upload' | 'download' | 'newer'
@@ -24,17 +26,23 @@ function actionFor(e: CompareEntry, dir: Direction, mirror: boolean): Action {
   return e.newer === 'remote' ? 'download' : 'upload'
 }
 
-const actionLabel: Record<Action, { text: string; icon: React.ReactNode; cls: string }> = {
-  upload: { text: 'на сервер', icon: <ArrowRight size={13} />, cls: 'text-accent' },
-  download: { text: 'на комп’ютер', icon: <ArrowLeft size={13} />, cls: 'text-success' },
-  'delete-local': { text: 'видалити локально', icon: <Minus size={13} />, cls: 'text-danger' },
-  'delete-remote': { text: 'видалити на сервері', icon: <Minus size={13} />, cls: 'text-danger' },
-  skip: { text: 'пропустити', icon: <Minus size={13} />, cls: 'text-dim' }
+const actionLabel: Record<Action, { text: (t: Messages) => string; icon: React.ReactNode; cls: string }> = {
+  upload: { text: (t) => t.compare.actions.upload, icon: <ArrowRight size={13} />, cls: 'text-accent' },
+  download: { text: (t) => t.compare.actions.download, icon: <ArrowLeft size={13} />, cls: 'text-success' },
+  'delete-local': { text: (t) => t.compare.actions.deleteLocal, icon: <Minus size={13} />, cls: 'text-danger' },
+  'delete-remote': { text: (t) => t.compare.actions.deleteRemote, icon: <Minus size={13} />, cls: 'text-danger' },
+  skip: { text: (t) => t.compare.actions.skip, icon: <Minus size={13} />, cls: 'text-dim' }
 }
 
-const reasonLabel: Record<string, string> = { size: 'розмір', mtime: 'дата', hash: 'вміст', type: 'тип' }
+function reasonLabel(t: Messages, e: CompareEntry): string {
+  const reason = (e.reason && t.compare.reasons[e.reason]) || t.compare.different
+  if (e.newer === 'local') return t.compare.newerLocal(reason)
+  if (e.newer === 'remote') return t.compare.newerRemote(reason)
+  return reason
+}
 
 export function CompareDialog({ sessionId, close }: { sessionId: string; close: () => void }) {
+  const t = useT()
   const ui = useApp((s) => s.ui[sessionId])
   const pushToast = useApp((s) => s.pushToast)
   const refresh = useApp((s) => s.refresh)
@@ -111,14 +119,12 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
       if (watchAfter) await window.api.watch.start(sessionId, localDir.trim(), remoteDir.trim())
       pushToast({
         kind: 'success',
-        title: 'Синхронізацію запущено',
-        message: [
-          planCounts.upload && `${planCounts.upload} на сервер`,
-          planCounts.download && `${planCounts.download} на комп’ютер`,
-          planCounts['delete-local'] + planCounts['delete-remote'] && `${planCounts['delete-local'] + planCounts['delete-remote']} видалено`
-        ]
-          .filter(Boolean)
-          .join(', ')
+        title: t.compare.syncStarted,
+        message: t.compare.syncSummary({
+          upload: planCounts.upload,
+          download: planCounts.download,
+          deleted: planCounts['delete-local'] + planCounts['delete-remote']
+        })
       })
       void refresh(sessionId, 'local')
       void refresh(sessionId, 'remote')
@@ -141,40 +147,39 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
 
   return (
     <Modal
-      title="Порівняння та синхронізація тек"
-      subtitle="Локальна тека ліворуч, сервер праворуч. Напрямок визначає, що робити з відмінностями."
+      title={t.compare.title}
+      subtitle={t.compare.subtitle}
       width={960}
       onClose={close}
       footer={
         <>
           {res && (
             <div className="mr-auto flex items-center gap-3 text-[12px] text-dim">
-              <span>
-                {res.counts.same} однакових · {res.counts.onlyLocal} лише локально · {res.counts.onlyRemote} лише на сервері · {res.counts.different} відмінних
-              </span>
-              {res.truncated && <Badge tone="warning">список обрізано</Badge>}
+              <span>{t.compare.summary(res.counts)}</span>
+              {res.truncated && <Badge tone="warning">{t.compare.truncated}</Badge>}
             </div>
           )}
-          <Button onClick={close}>Закрити</Button>
+          <Button onClick={close}>{t.common.close}</Button>
           <Button variant="primary" icon={<GitCompareArrows size={14} />} onClick={() => void apply()} disabled={!plan.length || applying || busy} loading={applying}>
-            Застосувати{plan.length ? ` (${plan.filter((p) => p.action !== 'skip').length})` : ''}
+            {t.common.apply}
+            {plan.length ? ` (${plan.filter((p) => p.action !== 'skip').length})` : ''}
           </Button>
         </>
       }
     >
       <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
-        <Field label="Локальна тека">
+        <Field label={t.compare.localDir}>
           <input className="input input-mono" value={localDir} onChange={(e) => setLocalDir(e.target.value)} spellCheck={false} />
         </Field>
-        <Field label="Тека на сервері">
+        <Field label={t.compare.remoteDir}>
           <input className="input input-mono" value={remoteDir} onChange={(e) => setRemoteDir(e.target.value)} spellCheck={false} />
         </Field>
         <Button variant="primary" icon={busy ? <Spinner size={13} /> : <Scale size={14} />} onClick={() => void run()} disabled={busy || !localDir.trim() || !remoteDir.trim()} className="mb-0">
-          Порівняти
+          {t.compare.run}
         </Button>
       </div>
       <div className="mt-2 flex items-center gap-5 text-[12.5px]">
-        <Checkbox checked={byHash} onChange={setByHash} label="Порівнювати вміст за sha256 для файлів однакового розміру (повільніше)" />
+        <Checkbox checked={byHash} onChange={setByHash} label={t.compare.byHash} />
       </div>
 
       {error && <div className="mt-3 text-[12.5px] text-danger">{error}</div>}
@@ -182,11 +187,11 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
       <div className="mt-3 rounded-md border border-border bg-surface-2 max-h-[360px] overflow-auto">
         {busy && (
           <div className="flex items-center justify-center h-28 gap-2 text-[12.5px] text-muted">
-            <Spinner size={18} /> Обхід тек…
+            <Spinner size={18} /> {t.compare.scanning}
           </div>
         )}
-        {!busy && !res && <div className="p-6 text-center text-[12.5px] text-dim">Натисніть «Порівняти», щоб побачити відмінності</div>}
-        {!busy && res && res.entries.length === 0 && <div className="p-6 text-center text-[12.5px] text-success">Теки однакові</div>}
+        {!busy && !res && <div className="p-6 text-center text-[12.5px] text-dim">{t.compare.hint}</div>}
+        {!busy && res && res.entries.length === 0 && <div className="p-6 text-center text-[12.5px] text-success">{t.compare.identical}</div>}
         {!busy && res && res.entries.length > 0 && (
           <table className="w-full text-[12.5px]">
             <thead className="sticky top-0 bg-surface-2 text-[11px] uppercase tracking-wide text-dim">
@@ -194,11 +199,11 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
                 <th className="px-2 py-1.5 text-left w-8">
                   <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(res.entries.map((e) => e.rel)))} />
                 </th>
-                <th className="px-2 py-1.5 text-left">Шлях</th>
-                <th className="px-2 py-1.5 text-right">Локально</th>
-                <th className="px-2 py-1.5 text-right">На сервері</th>
-                <th className="px-2 py-1.5 text-left">Відмінність</th>
-                <th className="px-2 py-1.5 text-left">Дія</th>
+                <th className="px-2 py-1.5 text-left">{t.compare.colPath}</th>
+                <th className="px-2 py-1.5 text-right">{t.compare.colLocal}</th>
+                <th className="px-2 py-1.5 text-right">{t.compare.colRemote}</th>
+                <th className="px-2 py-1.5 text-left">{t.compare.colDiff}</th>
+                <th className="px-2 py-1.5 text-left">{t.compare.colAction}</th>
               </tr>
             </thead>
             <tbody>
@@ -216,24 +221,19 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
                       {e.kind === 'dir' && <span className="text-dim">/</span>}
                     </td>
                     <td className="px-2 py-1 text-right tabular-nums text-muted whitespace-nowrap">
-                      {e.local ? (e.kind === 'dir' ? 'тека' : `${formatBytes(e.local.size)} · ${formatDate(e.local.mtime)}`) : <span className="text-dim">немає</span>}
+                      {e.local ? (e.kind === 'dir' ? t.common.folder : `${formatBytes(e.local.size)} · ${formatDate(e.local.mtime)}`) : <span className="text-dim">{t.compare.missing}</span>}
                     </td>
                     <td className="px-2 py-1 text-right tabular-nums text-muted whitespace-nowrap">
-                      {e.remote ? (e.kind === 'dir' ? 'тека' : `${formatBytes(e.remote.size)} · ${formatDate(e.remote.mtime)}`) : <span className="text-dim">немає</span>}
+                      {e.remote ? (e.kind === 'dir' ? t.common.folder : `${formatBytes(e.remote.size)} · ${formatDate(e.remote.mtime)}`) : <span className="text-dim">{t.compare.missing}</span>}
                     </td>
                     <td className="px-2 py-1 whitespace-nowrap">
-                      {e.status === 'only-local' && <Badge tone="accent">лише локально</Badge>}
-                      {e.status === 'only-remote' && <Badge tone="success">лише на сервері</Badge>}
-                      {e.status === 'different' && (
-                        <Badge tone="warning">
-                          {reasonLabel[e.reason ?? ''] ?? 'відмінний'}
-                          {e.newer && `, новіший ${e.newer === 'local' ? 'локально' : 'на сервері'}`}
-                        </Badge>
-                      )}
+                      {e.status === 'only-local' && <Badge tone="accent">{t.compare.onlyLocal}</Badge>}
+                      {e.status === 'only-remote' && <Badge tone="success">{t.compare.onlyRemote}</Badge>}
+                      {e.status === 'different' && <Badge tone="warning">{reasonLabel(t, e)}</Badge>}
                     </td>
                     <td className={cn('px-2 py-1 whitespace-nowrap', al.cls)}>
                       <span className="inline-flex items-center gap-1">
-                        {al.icon} {al.text}
+                        {al.icon} {al.text(t)}
                       </span>
                     </td>
                   </tr>
@@ -249,19 +249,22 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
           value={direction}
           onChange={setDirection}
           options={[
-            { value: 'upload', label: 'Локально → сервер', icon: <ArrowRight size={13} /> },
-            { value: 'download', label: 'Сервер → локально', icon: <ArrowLeft size={13} /> },
-            { value: 'newer', label: 'Новіше перемагає' }
+            { value: 'upload', label: t.compare.dirUpload, icon: <ArrowRight size={13} /> },
+            { value: 'download', label: t.compare.dirDownload, icon: <ArrowLeft size={13} /> },
+            { value: 'newer', label: t.compare.dirNewer }
           ]}
         />
-        <Checkbox checked={mirror} onChange={setMirror} disabled={direction === 'newer'} label="Дзеркало: видаляти у призначенні те, чого немає у джерелі" />
-        <Checkbox checked={watchAfter} onChange={setWatchAfter} label={<span className="inline-flex items-center gap-1"><Eye size={13} /> Далі стежити за локальною текою і відвантажувати зміни</span>} />
+        <Checkbox checked={mirror} onChange={setMirror} disabled={direction === 'newer'} label={t.compare.mirror} />
+        <Checkbox checked={watchAfter} onChange={setWatchAfter} label={<span className="inline-flex items-center gap-1"><Eye size={13} /> {t.compare.watchAfter}</span>} />
       </div>
       {plan.length > 0 && (
         <div className="mt-2 text-[12px] text-dim">
-          План: {countLabel(planCounts.upload, 'файл', 'файли', 'файлів')} на сервер, {planCounts.download} на комп’ютер
-          {planCounts['delete-local'] + planCounts['delete-remote'] > 0 && `, ${planCounts['delete-local'] + planCounts['delete-remote']} видалити`}
-          {planCounts.skip > 0 && `, ${planCounts.skip} пропустити`}
+          {t.compare.plan({
+            upload: planCounts.upload,
+            download: planCounts.download,
+            delete: planCounts['delete-local'] + planCounts['delete-remote'],
+            skip: planCounts.skip
+          })}
         </div>
       )}
     </Modal>

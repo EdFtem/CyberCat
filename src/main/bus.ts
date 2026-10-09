@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
 
-/** Внутрішня шина подій main-процесу (без IPC) */
+/** Internal event bus of the main process (no IPC) */
 export const bus = new EventEmitter()
 bus.setMaxListeners(50)

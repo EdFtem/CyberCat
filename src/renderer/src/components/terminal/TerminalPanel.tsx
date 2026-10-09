@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal as TerminalIcon, X } from 'lucide-react'
 import { useApp } from '@/store/app'
+import { tr, useT } from '@/lib/i18n'
 import { IconButton } from '../ui'
 
 const api = window.api
@@ -13,6 +14,7 @@ function cssVar(name: string): string {
 }
 
 export function TerminalPanel({ sid }: { sid: string }) {
+  const t = useT()
   const session = useApp((s) => s.sessions[sid])
   const toggle = useApp((s) => s.toggleTerminal)
   const setTerminalId = useApp((s) => s.setTerminalId)
@@ -65,14 +67,14 @@ export function TerminalPanel({ sid }: { sid: string }) {
     const cwd = uiState?.panes.remote.path
     const command = uiState?.terminalCommand
     if (command) useApp.getState().setTerminalCommand(sid, undefined)
-    term.writeln(`\x1b[90mПідключення до ${session?.host ?? 'сервера'}…\x1b[0m`)
+    term.writeln(`\x1b[90m${tr().terminal.connecting(session?.host)}\x1b[0m`)
 
     const offData = api.on.terminalData(({ termId: id, data }) => {
       if (id === termId) term.write(data)
     })
     const offExit = api.on.terminalExit(({ termId: id }) => {
       if (id !== termId) return
-      term.writeln('\r\n\x1b[90m[сеанс завершено]\x1b[0m')
+      term.writeln(`\r\n\x1b[90m${tr().terminal.sessionEnded}\x1b[0m`)
       termId = undefined
       setTerminalId(sid, undefined)
     })
@@ -88,7 +90,7 @@ export function TerminalPanel({ sid }: { sid: string }) {
         setTerminalId(sid, id)
       })
       .catch((e) => {
-        term.writeln(`\x1b[31mНе вдалося відкрити термінал: ${e instanceof Error ? e.message : String(e)}\x1b[0m`)
+        term.writeln(`\x1b[31m${tr().terminal.openFailed(e instanceof Error ? e.message : String(e))}\x1b[0m`)
       })
 
     const onDataDisp = term.onData((d) => {
@@ -122,22 +124,22 @@ export function TerminalPanel({ sid }: { sid: string }) {
   }, [sid]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const t = termRef.current
-    if (!t) return
-    t.options.theme = { ...t.options.theme, background: cssVar('--terminal-bg') || '#0a0e15' }
+    const xterm = termRef.current
+    if (!xterm) return
+    xterm.options.theme = { ...xterm.options.theme, background: cssVar('--terminal-bg') || '#0a0e15' }
   }, [theme])
 
   return (
     <div className="flex flex-col h-full min-h-0 rounded-lg border border-border overflow-hidden" style={{ background: 'var(--terminal-bg)' }}>
       <div className="flex items-center gap-2 px-3 h-8 border-b border-border/60 text-[12px] text-muted shrink-0" style={{ background: 'var(--surface)' }}>
         <TerminalIcon size={13} className="text-accent" />
-        <span className="font-medium text-text">Термінал</span>
+        <span className="font-medium text-text">{t.terminal.title}</span>
         <span className="text-dim font-mono">
           {session?.username}@{session?.host}
         </span>
         <span className="flex-1" />
-        <span className="text-dim">Ctrl+` — сховати</span>
-        <IconButton title="Закрити термінал" size={24} onClick={() => toggle(sid)}>
+        <span className="text-dim">{t.terminal.hideHint}</span>
+        <IconButton title={t.terminal.close} size={24} onClick={() => toggle(sid)}>
           <X size={14} />
         </IconButton>
       </div>

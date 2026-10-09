@@ -1,8 +1,9 @@
 import * as iconv from 'iconv-lite'
 import { getFs } from '../fs'
+import { tr } from '../i18n'
 import type { Eol, OpenTextResult, SaveTextRequest, SaveTextResult, Target } from '@shared/types'
 
-/** Максимальний розмір файлу для вбудованого редактора */
+/** Maximum file size for the built-in editor */
 export const MAX_EDITOR_BYTES = 8 * 1024 * 1024
 
 const utf8Fatal = new TextDecoder('utf-8', { fatal: true })
@@ -39,7 +40,7 @@ function sameSecond(a: number, b: number): boolean {
 export async function openText(target: Target, path: string): Promise<OpenTextResult> {
   const fs = getFs(target)
   const st = await fs.stat(path)
-  if (st.isDir) throw new Error('Це тека, а не файл')
+  if (st.isDir) throw new Error(tr().main.fs.isFolder)
   const { data, truncated } = await fs.readFile(path, MAX_EDITOR_BYTES)
   const { text, encoding } = decode(data)
   return {

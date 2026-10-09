@@ -23,7 +23,7 @@ export function parseKeyType(key: Buffer): string {
   }
 }
 
-/** Відбиток у форматі OpenSSH: SHA256 у base64 без вирівнювання */
+/** Fingerprint in OpenSSH format: SHA256 in base64 without padding */
 export function fingerprint(key: Buffer): string {
   return 'SHA256:' + createHash('sha256').update(key).digest('base64').replace(/=+$/, '')
 }

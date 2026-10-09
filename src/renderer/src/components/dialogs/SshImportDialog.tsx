@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Import, KeyRound, Route } from 'lucide-react'
 import { useApp } from '@/store/app'
-import { countLabel } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import type { SshConfigHost } from '@shared/types'
 import { Badge, Button, Modal, Spinner } from '../ui'
 
 export function SshImportDialog({ close }: { close: () => void }) {
+  const t = useT()
   const loadProfiles = useApp((s) => s.loadProfiles)
   const pushToast = useApp((s) => s.pushToast)
   const [hosts, setHosts] = useState<SshConfigHost[] | null>(null)
@@ -40,7 +41,7 @@ export function SshImportDialog({ close }: { close: () => void }) {
     try {
       const saved = await window.api.sshconfig.import([...selected])
       await loadProfiles()
-      pushToast({ kind: 'success', title: 'Імпорт завершено', message: `${countLabel(saved.length, 'профіль', 'профілі', 'профілів')} у групі «ssh config»` })
+      pushToast({ kind: 'success', title: t.sshImport.doneTitle, message: t.sshImport.doneMessage(saved.length, 'ssh config') })
       close()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -53,8 +54,8 @@ export function SshImportDialog({ close }: { close: () => void }) {
 
   return (
     <Modal
-      title="Імпорт із ~/.ssh/config"
-      subtitle="Профілі з ключами, портами й ProxyJump із вашого OpenSSH-конфігу"
+      title={t.sshImport.title}
+      subtitle={t.sshImport.subtitle}
       width={720}
       onClose={close}
       footer={
@@ -65,12 +66,12 @@ export function SshImportDialog({ close }: { close: () => void }) {
               className="mr-auto"
               onClick={() => setSelected(allSelected ? new Set() : new Set(hosts.map((h) => h.alias)))}
             >
-              {allSelected ? 'Зняти всі' : 'Вибрати всі'}
+              {allSelected ? t.sshImport.deselectAll : t.sshImport.selectAll}
             </Button>
           )}
-          <Button onClick={close}>Скасувати</Button>
+          <Button onClick={close}>{t.common.cancel}</Button>
           <Button variant="primary" icon={<Import size={14} />} onClick={() => void run()} disabled={!selected.size} loading={busy}>
-            Імпортувати{selected.size ? ` (${selected.size})` : ''}
+            {t.sshImport.importButton(selected.size)}
           </Button>
         </>
       }
@@ -83,7 +84,7 @@ export function SshImportDialog({ close }: { close: () => void }) {
       )}
       {hosts && hosts.length === 0 && (
         <div className="p-6 text-center text-[12.5px] text-muted">
-          У ~/.ssh/config немає блоків Host з конкретними іменами. Блоки з шаблонами * і ? пропускаються, але їхні опції застосовуються до імпортованих хостів.
+          {t.sshImport.noHosts}
         </div>
       )}
       {hosts && hosts.length > 0 && (
@@ -94,7 +95,7 @@ export function SshImportDialog({ close }: { close: () => void }) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] font-medium truncate">{h.alias}</span>
-                  {h.exists && <Badge tone="neutral">вже є профіль</Badge>}
+                  {h.exists && <Badge tone="neutral">{t.sshImport.profileExists}</Badge>}
                 </div>
                 <div className="text-[11.5px] text-dim font-mono truncate">
                   {h.user ? `${h.user}@` : ''}
@@ -118,7 +119,7 @@ export function SshImportDialog({ close }: { close: () => void }) {
           ))}
         </div>
       )}
-      <p className="mt-3 text-[11.5px] text-dim">Хости без IdentityFile отримають перший знайдений стандартний ключ (id_ed25519, id_ecdsa, id_rsa) або автентифікацію паролем.</p>
+      <p className="mt-3 text-[11.5px] text-dim">{t.sshImport.defaultKeyNote}</p>
     </Modal>
   )
 }

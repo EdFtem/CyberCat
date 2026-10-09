@@ -7,6 +7,7 @@ import { bus } from '../bus'
 import { sessions } from '../ssh/SessionManager'
 import { RemoteFs } from '../fs'
 import { transfers } from '../transfer/TransferManager'
+import { tr } from '../i18n'
 import type { WatchInfo } from '@shared/types'
 
 const DEBOUNCE_MS = 700
@@ -18,7 +19,7 @@ interface Watch {
   timers: Map<string, NodeJS.Timeout>
 }
 
-/** Режим «тримати в актуальному стані»: зміни у локальній теці автоматично відвантажуються */
+/** "Keep up to date" mode: changes in the local folder are uploaded automatically */
 class WatchService {
   private watches = new Map<string, Watch>()
 
@@ -58,7 +59,7 @@ class WatchService {
         )
       })
     } catch (e) {
-      throw new Error(`Не вдалося стежити за текою: ${e instanceof Error ? e.message : String(e)}`)
+      throw new Error(tr().main.sync.watchFailed(e instanceof Error ? e.message : String(e)))
     }
     watcher.on('error', (e) => {
       info.status = 'error'
@@ -67,7 +68,7 @@ class WatchService {
     })
     this.watches.set(info.id, { info, watcher, timers })
     this.emit()
-    toast('info', 'Стеження увімкнено', `${localDir} → ${remoteDir}`)
+    toast('info', tr().main.sync.watchStarted, `${localDir} → ${remoteDir}`)
     return info
   }
 
@@ -77,7 +78,7 @@ class WatchService {
     try {
       st = await fsp.stat(full)
     } catch {
-      return // видалено або тимчасовий файл
+      return // deleted or a temporary file
     }
     const relPosix = rel.split(/[\\/]/).join('/')
     const remoteParent = posix.join(info.remoteDir, posix.dirname(relPosix) === '.' ? '' : posix.dirname(relPosix))

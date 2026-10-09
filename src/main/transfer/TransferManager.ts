@@ -11,6 +11,7 @@ import { localFs } from '../fs/LocalFs'
 import { RemoteFs } from '../fs/RemoteFs'
 import type { FsAdapter } from '../fs/types'
 import { settings } from '../store/settings'
+import { tr } from '../i18n'
 import { sftpClose, sftpOpen, sftpRead, sftpSetstat, sftpWrite } from '../fs/sftpUtil'
 import type {
   OverwriteAnswer,
@@ -24,7 +25,7 @@ import type {
 const CHUNK = 32 * 1024
 const CONCURRENT_CHUNKS = 32
 
-/** Керування одним активним перенесенням: пауза, скасування */
+/** Controls one active transfer: pause, cancel */
 class Ctrl {
   paused = false
   cancelled = false
@@ -61,14 +62,14 @@ interface Internal {
   autoRetry?: boolean
   srcMtime?: number
   deleteSource?: boolean
-  /** Усі дії над елементом завершено, включно з видаленням джерела */
+  /** All actions on the item are finished, including deleting the source */
   settled?: boolean
 }
 
 interface Batch {
   srcFs: FsAdapter
   move: boolean
-  /** Теки-джерела для переміщення, глибші спочатку */
+  /** Source folders of a move, deepest first */
   dirs: string[]
 }
 
@@ -99,7 +100,7 @@ class TransferManager {
         for (const it of this.items) {
           if (it.sessionId === info.id && it.status === 'queued') {
             it.status = 'error'
-            it.error = 'Сесію відключено'
+            it.error = tr().main.session.disconnected
           }
         }
         this.emit()
@@ -117,7 +118,7 @@ class TransferManager {
         }
       }
       if (requeued) {
-        toast('info', 'З’єднання відновлено', `Передачі продовжено: ${requeued}`)
+        toast('info', tr().main.transfer.reconnected, tr().main.transfer.resumed(requeued))
         this.schedule()
       }
     })
@@ -177,7 +178,7 @@ class TransferManager {
     this.schedule()
   }
 
-  /** Після завершення всіх елементів пакета переміщення прибираємо порожні теки-джерела */
+  /** Once every item of a move batch is done, remove the empty source folders */
   private async finishBatch(batchId: string): Promise<void> {
     const batch = this.batches.get(batchId)
     if (!batch) return
@@ -192,7 +193,7 @@ class TransferManager {
       try {
         await batch.srcFs.rmdir(dir)
       } catch {
-        /* тека не порожня: щось пропущено або не вдалося */
+        /* folder not empty: something was skipped or failed */
       }
     }
   }
@@ -206,7 +207,7 @@ class TransferManager {
     try {
       await dstFs.ensureDir(req.destDir)
     } catch (e) {
-      toast('error', 'Тека призначення недоступна', e instanceof Error ? e.message : String(e))
+      toast('error', tr().main.transfer.destUnavailable, e instanceof Error ? e.message : String(e))
       return
     }
 
@@ -232,7 +233,7 @@ class TransferManager {
           await this.expandDir(src.path, dst, srcFs, dstFs, req, session, batchId)
         }
       } catch (e) {
-        toast('error', `Не вдалося додати ${src.name}`, e instanceof Error ? e.message : String(e))
+        toast('error', tr().main.transfer.addFailed(src.name), e instanceof Error ? e.message : String(e))
       }
     }
     void this.finishBatch(batchId)
@@ -294,10 +295,10 @@ class TransferManager {
 
     try {
       const session = sessions.get(item.sessionId)
-      if (!session) throw new Error('Сесію закрито')
+      if (!session) throw new Error(tr().main.session.closed)
       if (!session.isConnected) {
         meta.autoRetry = session.info.status === 'reconnecting' || session.info.status === 'connecting'
-        throw new Error(meta.autoRetry ? 'Очікування відновлення з’єднання' : 'Сесію не підключено')
+        throw new Error(meta.autoRetry ? tr().main.transfer.waitingForReconnect : tr().main.session.notConnected)
       }
       const { srcFs, dstFs } = this.adapters(session, item.direction)
       const srcStat = await srcFs.stat(item.src)
@@ -340,13 +341,13 @@ class TransferManager {
       try {
         await dstFs.utimes(item.dst, Date.now(), srcStat.mtime)
       } catch {
-        /* не критично */
+        /* not critical */
       }
       if (meta.deleteSource) {
         try {
           await srcFs.remove(item.src, false)
         } catch (e) {
-          toast('warning', `Не вдалося видалити джерело ${item.name}`, e instanceof Error ? e.message : String(e))
+          toast('warning', tr().main.transfer.deleteSourceFailed(item.name), e instanceof Error ? e.message : String(e))
         }
       }
     } catch (e) {
@@ -420,7 +421,7 @@ class TransferManager {
           let got = 0
           while (got < len) {
             const n = await sftpRead(sftp, handle, buf, got, len - got, off + got)
-            if (n === 0) throw new Error('Файл на сервері став коротшим під час передачі')
+            if (n === 0) throw new Error(tr().main.transfer.remoteShrank)
             got += n
           }
         },
@@ -458,7 +459,7 @@ class TransferManager {
           let got = 0
           while (got < len) {
             const { bytesRead } = await fd.read(buf, got, len - got, off + got)
-            if (bytesRead === 0) throw new Error('Локальний файл став коротшим під час передачі')
+            if (bytesRead === 0) throw new Error(tr().main.transfer.localShrank)
             got += bytesRead
           }
         },
@@ -479,8 +480,8 @@ class TransferManager {
   }
 
   /**
-   * Паралельний конвеєр читання та запису блоками.
-   * Повертає зміщення, до якого дані гарантовано записані без пропусків.
+   * Parallel read/write pipeline working in blocks.
+   * Returns the offset up to which the data is guaranteed to be written without gaps.
    */
   private async pump(
     ctrl: Ctrl,

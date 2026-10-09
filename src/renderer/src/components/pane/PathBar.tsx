@@ -3,8 +3,10 @@ import { ChevronRight } from 'lucide-react'
 import { useApp, paneTarget, type PaneId } from '@/store/app'
 import { pathLib } from '@/lib/paths'
 import { cn } from '@/lib/cn'
+import { useT } from '@/lib/i18n'
 
 export function PathBar({ sid, pane, editRequest }: { sid: string; pane: PaneId; editRequest: number }) {
+  const t = useT()
   const path = useApp((s) => s.ui[sid]?.panes[pane].path ?? '')
   const navigate = useApp((s) => s.navigate)
   const [editing, setEditing] = useState(false)
@@ -74,7 +76,7 @@ export function PathBar({ sid, pane, editRequest }: { sid: string; pane: PaneId;
           setEditing(true)
         }
       }}
-      title={path || 'Цей ПК'}
+      title={path || t.pane.thisPc}
     >
       {segments.map((seg, i) => {
         const last = i === segments.length - 1

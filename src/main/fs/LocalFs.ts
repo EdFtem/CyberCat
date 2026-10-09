@@ -4,10 +4,11 @@ import * as nodePath from 'path'
 import { homedir } from 'os'
 import type { DiskUsage, FileEntry } from '@shared/types'
 import { FsAdapter, permBits } from './types'
+import { tr } from '../i18n'
 
 const isWin = process.platform === 'win32'
 
-/** Віртуальний корінь зі списком дисків у Windows */
+/** Virtual root listing the drives on Windows */
 export const DRIVES_ROOT = isWin ? '' : '/'
 
 async function listDrives(): Promise<FileEntry[]> {
@@ -128,7 +129,7 @@ export class LocalFs implements FsAdapter {
   async rename(from: string, to: string): Promise<void> {
     try {
       await fsp.access(to, fsConst.F_OK)
-      throw new Error(`Файл або тека вже існує: ${to}`)
+      throw new Error(tr().main.fs.alreadyExists(to))
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
     }
@@ -138,7 +139,7 @@ export class LocalFs implements FsAdapter {
   async copy(src: string, dest: string): Promise<void> {
     try {
       await fsp.access(dest, fsConst.F_OK)
-      throw new Error(`Файл або тека вже існує: ${dest}`)
+      throw new Error(tr().main.fs.alreadyExists(dest))
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
     }
@@ -214,7 +215,7 @@ export class LocalFs implements FsAdapter {
       await fsp.rename(tmp, p)
     } catch (e) {
       await fsp.unlink(tmp).catch(() => {})
-      // Запасний варіант: запис на місці (наприклад, немає прав на створення файлів у теці)
+      // Fallback: write in place (e.g. no permission to create files in the folder)
       await fsp.writeFile(p, data)
     }
   }

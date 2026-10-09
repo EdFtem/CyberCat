@@ -1,6 +1,7 @@
 import { sessions } from '../ssh/SessionManager'
 import type { Session } from '../ssh/Session'
 import { shq } from '../fs/sftpUtil'
+import { tr } from '../i18n'
 import type {
   DockerContainer,
   DockerContainerAction,
@@ -22,13 +23,13 @@ function parseJsonLines<T>(stdout: string): T[] {
     try {
       out.push(JSON.parse(t) as T)
     } catch {
-      /* пропускаємо сміття у виводі */
+      /* skip junk in the output */
     }
   }
   return out
 }
 
-/** "0.0.0.0:8080->80/tcp, :::8080->80/tcp, 9000/tcp" → список портів без дублікатів IPv6 */
+/** "0.0.0.0:8080->80/tcp, :::8080->80/tcp, 9000/tcp" → port list without IPv6 duplicates */
 export function parsePorts(spec: string): DockerPort[] {
   const out: DockerPort[] = []
   const seen = new Set<string>()
@@ -69,10 +70,10 @@ export async function detectDocker(sessionId: string, force = false): Promise<Do
 }
 
 async function detectUncached(s: Session): Promise<DockerInfo> {
-  if (!s.info.hasShell) return { available: false, cli: 'docker', compose: false, error: 'Потрібен доступ до shell на сервері' }
+  if (!s.info.hasShell) return { available: false, cli: 'docker', compose: false, error: tr().main.exec.shellRequired }
   const which = await s.exec('command -v docker 2>/dev/null || command -v podman 2>/dev/null || echo __none__', 15_000)
   const bin = which.stdout.trim().split('\n').filter(Boolean).pop() ?? '__none__'
-  if (bin === '__none__') return { available: false, cli: 'docker', compose: false, error: 'На сервері не знайдено docker або podman' }
+  if (bin === '__none__') return { available: false, cli: 'docker', compose: false, error: tr().main.docker.notFound }
   const cli: DockerInfo['cli'] = /podman/.test(bin) ? 'podman' : 'docker'
   const ver = await s.exec(`${cli} version --format '{{.Client.Version}}|{{.Server.Version}}' 2>&1`, 20_000)
   const text = (ver.stdout + ver.stderr).trim()
@@ -84,9 +85,9 @@ async function detectUncached(s: Session): Promise<DockerInfo> {
       compose: false,
       needsSudo: denied && !s.sudoActive,
       error: denied
-        ? `Немає доступу до Docker daemon для користувача ${s.info.username}. Увімкніть sudo-режим або додайте користувача до групи docker`
+        ? tr().main.docker.daemonDenied(s.info.username)
         : /cannot connect|dial unix|connect: /i.test(text)
-          ? 'Docker daemon не запущено'
+          ? tr().main.docker.daemonNotRunning
           : text.slice(0, 300)
     }
   }
@@ -98,7 +99,7 @@ async function detectUncached(s: Session): Promise<DockerInfo> {
 async function cliFor(sessionId: string): Promise<{ s: Session; cli: string }> {
   const s = sessions.require(sessionId)
   const info = await detectDocker(sessionId)
-  if (!info.available || info.error) throw new Error(info.error ?? 'Docker недоступний')
+  if (!info.available || info.error) throw new Error(info.error ?? tr().main.docker.unavailable)
   return { s, cli: info.cli }
 }
 
@@ -129,7 +130,7 @@ export async function listContainers(sessionId: string): Promise<DockerContainer
     s.exec(`${cli} ps -a --no-trunc --format '{{json .}}'`, 60_000),
     s.exec(`${cli} stats --no-stream --format '{{json .}}' 2>/dev/null`, 60_000)
   ])
-  if (ps.code !== 0) throw new Error(ps.stderr.trim() || 'docker ps не вдався')
+  if (ps.code !== 0) throw new Error(ps.stderr.trim() || tr().main.exec.failed('docker ps'))
   const rows = parseJsonLines<PsRow>(ps.stdout)
   const statRows = parseJsonLines<StatsRow>(stats.stdout)
   const statsByName = new Map(statRows.map((r) => [r.Name, r]))
@@ -191,14 +192,14 @@ export async function containerAction(sessionId: string, id: string, action: Doc
   const { s, cli } = await cliFor(sessionId)
   const verb = action === 'rm' ? `rm${force ? ' -f' : ''}` : action
   const r = await s.exec(`${cli} ${verb} ${shq(id)} 2>&1`, 120_000)
-  if (r.code !== 0) throw new Error((r.stdout + r.stderr).trim() || `${cli} ${action} завершився з кодом ${r.code}`)
+  if (r.code !== 0) throw new Error((r.stdout + r.stderr).trim() || tr().main.exec.exitCode(`${cli} ${action}`, r.code))
   return (r.stdout + r.stderr).trim()
 }
 
 export async function inspectContainer(sessionId: string, id: string): Promise<unknown> {
   const { s, cli } = await cliFor(sessionId)
   const r = await s.exec(`${cli} inspect ${shq(id)}`, 60_000)
-  if (r.code !== 0) throw new Error(r.stderr.trim() || 'inspect не вдався')
+  if (r.code !== 0) throw new Error(r.stderr.trim() || tr().main.exec.failed('inspect'))
   const arr = JSON.parse(r.stdout) as unknown[]
   return arr[0]
 }
@@ -215,7 +216,7 @@ interface ImageRow {
 export async function listImages(sessionId: string): Promise<DockerImage[]> {
   const { s, cli } = await cliFor(sessionId)
   const r = await s.exec(`${cli} images --format '{{json .}}'`, 60_000)
-  if (r.code !== 0) throw new Error(r.stderr.trim() || 'docker images не вдався')
+  if (r.code !== 0) throw new Error(r.stderr.trim() || tr().main.exec.failed('docker images'))
   const used = new Set<string>()
   const ps = await s.exec(`${cli} ps -a --format '{{.Image}}'`, 30_000)
   for (const l of ps.stdout.split('\n')) if (l.trim()) used.add(l.trim())
@@ -234,7 +235,7 @@ export async function imageAction(sessionId: string, id: string, action: 'rm' | 
   const { s, cli } = await cliFor(sessionId)
   const cmd = action === 'rm' ? `${cli} rmi${force ? ' -f' : ''} ${shq(id)}` : `${cli} pull ${shq(id)}`
   const r = await s.exec(`${cmd} 2>&1`, 600_000)
-  if (r.code !== 0) throw new Error((r.stdout + r.stderr).trim() || `${cmd} завершився з кодом ${r.code}`)
+  if (r.code !== 0) throw new Error((r.stdout + r.stderr).trim() || tr().main.exec.exitCode(cmd, r.code))
   return (r.stdout + r.stderr).trim()
 }
 
@@ -252,7 +253,7 @@ export async function listVolumes(sessionId: string): Promise<DockerVolume[]> {
     s.exec(`${cli} volume ls --format '{{json .}}'`, 60_000),
     s.exec(`${cli} volume ls -q -f dangling=true 2>/dev/null`, 60_000)
   ])
-  if (ls.code !== 0) throw new Error(ls.stderr.trim() || 'docker volume ls не вдався')
+  if (ls.code !== 0) throw new Error(ls.stderr.trim() || tr().main.exec.failed('docker volume ls'))
   const unused = new Set(dangling.stdout.split('\n').map((x) => x.trim()).filter(Boolean))
   return parseJsonLines<VolumeRow>(ls.stdout).map((v) => ({
     name: v.Name,
@@ -265,7 +266,7 @@ export async function listVolumes(sessionId: string): Promise<DockerVolume[]> {
 export async function volumeAction(sessionId: string, name: string, action: 'rm', force = false): Promise<string> {
   const { s, cli } = await cliFor(sessionId)
   const r = await s.exec(`${cli} volume rm${force ? ' -f' : ''} ${shq(name)} 2>&1`, 120_000)
-  if (r.code !== 0) throw new Error((r.stdout + r.stderr).trim() || `volume ${action} завершився з кодом ${r.code}`)
+  if (r.code !== 0) throw new Error((r.stdout + r.stderr).trim() || tr().main.exec.exitCode(`volume ${action}`, r.code))
   return (r.stdout + r.stderr).trim()
 }
 
@@ -288,24 +289,24 @@ export async function prune(sessionId: string, what: 'images' | 'volumes' | 'con
   const cmd =
     what === 'images' ? `${cli} image prune -f` : what === 'volumes' ? `${cli} volume prune -f` : what === 'containers' ? `${cli} container prune -f` : `${cli} system prune -f`
   const r = await s.exec(`${cmd} 2>&1`, 600_000)
-  if (r.code !== 0) throw new Error((r.stdout + r.stderr).trim() || `${cmd} завершився з кодом ${r.code}`)
+  if (r.code !== 0) throw new Error((r.stdout + r.stderr).trim() || tr().main.exec.exitCode(cmd, r.code))
   return (r.stdout + r.stderr).trim()
 }
 
-/** Команда для логів контейнера, запускається через TailService */
+/** Command for container logs, run through TailService */
 export async function logsCommand(sessionId: string, id: string, tail: number): Promise<string> {
   const { cli } = await cliFor(sessionId)
   return `${cli} logs -f --tail ${Math.max(0, Math.floor(tail))} ${shq(id)}`
 }
 
-/** Команда для shell усередині контейнера, з урахуванням sudo-режиму */
+/** Command for a shell inside the container, honoring sudo mode */
 export async function execShellCommand(sessionId: string, id: string): Promise<string> {
   const { s, cli } = await cliFor(sessionId)
   const inner = `${cli} exec -it ${shq(id)} sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'`
   return s.sudoActive ? `sudo ${inner}` : inner
 }
 
-/** Команда compose для проєкту */
+/** compose command for a project */
 export async function composeCommand(sessionId: string, project: string, dir: string | undefined, files: string[] | undefined, action: string): Promise<string> {
   const { s, cli } = await cliFor(sessionId)
   const parts = [cli, 'compose', '-p', shq(project)]

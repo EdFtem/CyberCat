@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Cat, FolderOpen, TriangleAlert } from 'lucide-react'
 import { useApp, type Dialog } from '@/store/app'
 import { Button, Checkbox, Field, Modal, Segmented } from '../ui'
-import { formatBytes, formatDateFull, modeToOctal, modeToString, parseOctal, countLabel } from '@/lib/format'
+import { formatBytes, formatDateFull, formatNumber, modeToOctal, modeToString, parseOctal } from '@/lib/format'
+import { rich, useT } from '@/lib/i18n'
+import { LANGUAGES, type Lang, type Messages } from '@shared/i18n'
 import { FileIcon } from '@/lib/fileIcons'
 import { SearchDialog } from './SearchDialog'
 import { SshImportDialog } from './SshImportDialog'
@@ -47,6 +49,7 @@ export function DialogHost() {
 }
 
 function InputDialog({ d, close }: { d: Extract<Dialog, { kind: 'input' }>; close: () => void }) {
+  const t = useT()
   const [v, setV] = useState(d.initial ?? '')
   const [busy, setBusy] = useState(false)
   const error = d.validate ? d.validate(v) : null
@@ -67,9 +70,9 @@ function InputDialog({ d, close }: { d: Extract<Dialog, { kind: 'input' }>; clos
       onClose={close}
       footer={
         <>
-          <Button onClick={close}>Скасувати</Button>
+          <Button onClick={close}>{t.common.cancel}</Button>
           <Button variant="primary" onClick={() => void submit()} disabled={!!error || !v.trim()} loading={busy}>
-            {d.okLabel ?? 'OK'}
+            {d.okLabel ?? t.common.ok}
           </Button>
         </>
       }
@@ -100,6 +103,7 @@ function InputDialog({ d, close }: { d: Extract<Dialog, { kind: 'input' }>; clos
 }
 
 function ConfirmDialog({ d, close }: { d: Extract<Dialog, { kind: 'confirm' }>; close: () => void }) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const run = async (): Promise<void> => {
     setBusy(true)
@@ -117,9 +121,9 @@ function ConfirmDialog({ d, close }: { d: Extract<Dialog, { kind: 'confirm' }>; 
       onClose={close}
       footer={
         <>
-          <Button onClick={close}>Скасувати</Button>
+          <Button onClick={close}>{t.common.cancel}</Button>
           <Button variant={d.danger ? 'danger' : 'primary'} onClick={() => void run()} loading={busy} data-autofocus>
-            {d.okLabel ?? 'Підтвердити'}
+            {d.okLabel ?? t.common.confirm}
           </Button>
         </>
       }
@@ -143,13 +147,14 @@ function ConfirmDialog({ d, close }: { d: Extract<Dialog, { kind: 'confirm' }>; 
   )
 }
 
-const BITS: { label: string; bits: [number, number, number] }[] = [
-  { label: 'Власник', bits: [0o400, 0o200, 0o100] },
-  { label: 'Група', bits: [0o040, 0o020, 0o010] },
-  { label: 'Інші', bits: [0o004, 0o002, 0o001] }
+const permissionRows = (t: Messages): { label: string; bits: [number, number, number] }[] => [
+  { label: t.dialogs.chmodOwner, bits: [0o400, 0o200, 0o100] },
+  { label: t.dialogs.chmodGroup, bits: [0o040, 0o020, 0o010] },
+  { label: t.dialogs.chmodOthers, bits: [0o004, 0o002, 0o001] }
 ]
 
 function ChmodDialog({ d, close }: { d: Extract<Dialog, { kind: 'chmod' }>; close: () => void }) {
+  const t = useT()
   const refresh = useApp((s) => s.refresh)
   const pushToast = useApp((s) => s.pushToast)
   const first = d.entries[0]
@@ -179,11 +184,11 @@ function ChmodDialog({ d, close }: { d: Extract<Dialog, { kind: 'chmod' }>; clos
         mode,
         recursive
       )
-      pushToast({ kind: 'success', title: 'Права змінено', message: `${modeToOctal(mode)} для ${countLabel(d.entries.length, 'елемента', 'елементів', 'елементів')}` })
+      pushToast({ kind: 'success', title: t.dialogs.chmodDone, message: t.dialogs.chmodDoneMessage(modeToOctal(mode), d.entries.length) })
       void refresh(d.sessionId, d.pane)
       close()
     } catch (e) {
-      pushToast({ kind: 'error', title: 'Не вдалося змінити права', message: e instanceof Error ? e.message : String(e) })
+      pushToast({ kind: 'error', title: t.dialogs.chmodFailed, message: e instanceof Error ? e.message : String(e) })
     } finally {
       setBusy(false)
     }
@@ -191,15 +196,15 @@ function ChmodDialog({ d, close }: { d: Extract<Dialog, { kind: 'chmod' }>; clos
 
   return (
     <Modal
-      title="Права доступу"
-      subtitle={d.entries.length === 1 ? first.path : `${countLabel(d.entries.length, 'елемент', 'елементи', 'елементів')}${same ? '' : ' · права відрізняються'}`}
+      title={t.dialogs.chmodTitle}
+      subtitle={d.entries.length === 1 ? first.path : `${t.common.items(d.entries.length)}${same ? '' : ` · ${t.dialogs.chmodMixed}`}`}
       width={460}
       onClose={close}
       footer={
         <>
-          <Button onClick={close}>Скасувати</Button>
+          <Button onClick={close}>{t.common.cancel}</Button>
           <Button variant="primary" onClick={() => void apply()} loading={busy} disabled={parseOctal(octal) === null}>
-            Застосувати
+            {t.common.apply}
           </Button>
         </>
       }
@@ -209,13 +214,13 @@ function ChmodDialog({ d, close }: { d: Extract<Dialog, { kind: 'chmod' }>; clos
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-dim">
               <th className="text-left font-medium pb-2"></th>
-              <th className="font-medium pb-2 px-3">Читання</th>
-              <th className="font-medium pb-2 px-3">Запис</th>
-              <th className="font-medium pb-2 px-3">Виконання</th>
+              <th className="font-medium pb-2 px-3">{t.dialogs.chmodRead}</th>
+              <th className="font-medium pb-2 px-3">{t.dialogs.chmodWrite}</th>
+              <th className="font-medium pb-2 px-3">{t.dialogs.chmodExecute}</th>
             </tr>
           </thead>
           <tbody>
-            {BITS.map((row) => (
+            {permissionRows(t).map((row) => (
               <tr key={row.label}>
                 <td className="py-1.5 text-muted">{row.label}</td>
                 {row.bits.map((bit) => (
@@ -228,7 +233,7 @@ function ChmodDialog({ d, close }: { d: Extract<Dialog, { kind: 'chmod' }>; clos
           </tbody>
         </table>
         <div className="space-y-3 w-[132px]">
-          <Field label="Octal" error={parseOctal(octal) === null ? 'Напр. 644' : null}>
+          <Field label="Octal" error={parseOctal(octal) === null ? t.dialogs.chmodOctalHint : null}>
             <input className="input input-mono text-center" value={octal} onChange={(e) => onOctal(e.target.value)} maxLength={4} />
           </Field>
           <div className="font-mono text-[13px] text-center text-muted rounded-md bg-surface-2 border border-border py-1.5">{modeToString(mode)}</div>
@@ -246,24 +251,26 @@ function ChmodDialog({ d, close }: { d: Extract<Dialog, { kind: 'chmod' }>; clos
           </button>
         ))}
       </div>
-      {hasDir && <Checkbox className="mt-4" checked={recursive} onChange={setRecursive} label="Застосувати рекурсивно до вмісту тек" />}
+      {hasDir && <Checkbox className="mt-4" checked={recursive} onChange={setRecursive} label={t.dialogs.chmodRecursive} />}
     </Modal>
   )
 }
 
 function PropertiesDialog({ target, entry, close }: { target: Target; entry: FileEntry; close: () => void }) {
+  const t = useT()
+  const p = t.dialogs
   const rows: [string, React.ReactNode][] = [
-    ['Шлях', <span className="font-mono text-[12px] break-all select-text">{entry.path}</span>],
-    ['Тип', entry.isDrive ? 'Диск' : entry.isSymlink ? `Символічне посилання${entry.isDir ? ' на теку' : ''}` : entry.isDir ? 'Тека' : 'Файл'],
-    ...(entry.linkTarget ? ([['Ціль', <span className="font-mono text-[12px] break-all select-text">{entry.linkTarget}</span>]] as [string, React.ReactNode][]) : []),
-    ['Розмір', entry.isDir ? '—' : `${formatBytes(entry.size)} (${entry.size.toLocaleString('uk-UA')} Б)`],
-    ['Змінено', formatDateFull(entry.mtime)],
-    ['Права', <span className="font-mono">{modeToString(entry.mode)} ({modeToOctal(entry.mode)})</span>],
-    ...(entry.owner ? ([['Власник', `${entry.owner}${entry.group ? `:${entry.group}` : ''}`]] as [string, React.ReactNode][]) : []),
-    ['Розташування', target === 'local' ? 'Локальний комп\u2019ютер' : 'Сервер']
+    [p.propPath, <span className="font-mono text-[12px] break-all select-text">{entry.path}</span>],
+    [p.propType, entry.isDrive ? p.propDrive : entry.isSymlink ? (entry.isDir ? p.propSymlinkToFolder : p.propSymlink) : entry.isDir ? p.propFolder : p.propFile],
+    ...(entry.linkTarget ? ([[p.propTarget, <span className="font-mono text-[12px] break-all select-text">{entry.linkTarget}</span>]] as [string, React.ReactNode][]) : []),
+    [p.propSize, entry.isDir ? '—' : `${formatBytes(entry.size)} (${p.propBytes(formatNumber(entry.size))})`],
+    [p.propModified, formatDateFull(entry.mtime)],
+    [p.propPermissions, <span className="font-mono">{modeToString(entry.mode)} ({modeToOctal(entry.mode)})</span>],
+    ...(entry.owner ? ([[p.propOwner, `${entry.owner}${entry.group ? `:${entry.group}` : ''}`]] as [string, React.ReactNode][]) : []),
+    [p.propLocation, target === 'local' ? p.propLocalComputer : p.propServer]
   ]
   return (
-    <Modal title={entry.name} width={480} onClose={close} footer={<Button variant="primary" onClick={close}>Закрити</Button>}>
+    <Modal title={entry.name} width={480} onClose={close} footer={<Button variant="primary" onClick={close}>{t.common.close}</Button>}>
       <div className="flex items-start gap-4">
         <div className="shrink-0 mt-1">
           <FileIcon entry={entry} size={40} />
@@ -281,7 +288,10 @@ function PropertiesDialog({ target, entry, close }: { target: Target; entry: Fil
   )
 }
 
+const code = (s: string): React.ReactNode => <span className="font-mono">{s}</span>
+
 function SettingsDialog({ close }: { close: () => void }) {
+  const t = useT()
   const settings = useApp((s) => s.settings)
   const update = useApp((s) => s.updateSettings)
   const [editor, setEditor] = useState(settings.externalEditor)
@@ -289,32 +299,26 @@ function SettingsDialog({ close }: { close: () => void }) {
   const [commands, setCommands] = useState(settings.customCommands)
   useEffect(() => setEditor(settings.externalEditor), [settings.externalEditor])
   const platform = useApp((s) => s.info?.platform)
-  const agentHint = useMemo(
-    () => (platform === 'win32' ? 'Порожньо = \\\\.\\pipe\\openssh-ssh-agent або SSH_AUTH_SOCK. Для PuTTY вкажіть pageant' : 'Порожньо = SSH_AUTH_SOCK'),
-    [platform]
-  )
+  const agentHint = useMemo(() => (platform === 'win32' ? t.settings.agentHintWindows : t.settings.agentHintPosix), [platform, t])
   return (
-    <Modal title="Налаштування" width={560} onClose={close} footer={<Button variant="primary" onClick={close}>Готово</Button>}>
+    <Modal title={t.settings.title} width={560} onClose={close} footer={<Button variant="primary" onClick={close}>{t.common.done}</Button>}>
       <div className="space-y-5">
-        <Field label="Тема">
-          <Segmented
-            value={settings.theme}
-            onChange={(v) => void update({ theme: v })}
-            options={[
-              { value: 'dark', label: 'Темна' },
-              { value: 'light', label: 'Світла' }
-            ]}
-          />
-        </Field>
-        <Field
-          label="Зовнішній редактор"
-          hint={
-            <>
-              Команда для відкриття файлу. Порожньо = системна програма за замовчуванням. Можна вказати <span className="font-mono">%f</span> для шляху, наприклад{' '}
-              <span className="font-mono">code --wait %f</span> або <span className="font-mono">"C:\Program Files\Notepad++\notepad++.exe"</span>.
-            </>
-          }
-        >
+        <div className="flex flex-wrap gap-x-8 gap-y-5">
+          <Field label={t.settings.language}>
+            <Segmented<Lang> value={settings.language} onChange={(v) => void update({ language: v })} options={LANGUAGES} />
+          </Field>
+          <Field label={t.settings.theme}>
+            <Segmented
+              value={settings.theme}
+              onChange={(v) => void update({ theme: v })}
+              options={[
+                { value: 'dark', label: t.settings.themeDark },
+                { value: 'light', label: t.settings.themeLight }
+              ]}
+            />
+          </Field>
+        </div>
+        <Field label={t.settings.externalEditor} hint={rich(t.settings.externalEditorHint, { code })}>
           <div className="flex gap-2">
             <input
               className="input input-mono flex-1"
@@ -326,7 +330,7 @@ function SettingsDialog({ close }: { close: () => void }) {
             <Button
               icon={<FolderOpen size={14} />}
               onClick={async () => {
-                const p = await window.api.app.pickFile({ title: 'Оберіть програму', defaultPath: 'C:\\Program Files' })
+                const p = await window.api.app.pickFile({ title: t.settings.pickProgram, defaultPath: 'C:\\Program Files' })
                 if (p) {
                   const cmd = `"${p}"`
                   setEditor(cmd)
@@ -334,14 +338,20 @@ function SettingsDialog({ close }: { close: () => void }) {
                 }
               }}
             >
-              Обрати
+              {t.common.browse}
             </Button>
           </div>
         </Field>
-        <Field label="SSH-агент" hint={agentHint}>
-          <input className="input input-mono" value={agent} onChange={(e) => setAgent(e.target.value)} onBlur={() => void update({ agentPath: agent })} placeholder="авто" />
+        <Field label={t.settings.sshAgent} hint={agentHint}>
+          <input
+            className="input input-mono"
+            value={agent}
+            onChange={(e) => setAgent(e.target.value)}
+            onBlur={() => void update({ agentPath: agent })}
+            placeholder={t.settings.agentPlaceholder}
+          />
         </Field>
-        <Field label="Одночасних передач">
+        <Field label={t.settings.concurrency}>
           <Segmented
             value={String(settings.transferConcurrency) as '1' | '2' | '4' | '8'}
             onChange={(v) => void update({ transferConcurrency: Number(v) })}
@@ -354,29 +364,21 @@ function SettingsDialog({ close }: { close: () => void }) {
           />
         </Field>
         <div className="flex flex-col gap-2">
-          <Checkbox checked={settings.showHidden} onChange={(v) => void update({ showHidden: v })} label="Показувати приховані файли" />
-          <Checkbox checked={settings.confirmDelete} onChange={(v) => void update({ confirmDelete: v })} label="Підтверджувати видалення" />
+          <Checkbox checked={settings.showHidden} onChange={(v) => void update({ showHidden: v })} label={t.settings.showHidden} />
+          <Checkbox checked={settings.confirmDelete} onChange={(v) => void update({ confirmDelete: v })} label={t.settings.confirmDelete} />
         </div>
-        <Field
-          label="Користувацькі команди на сервері"
-          hint={
-            <>
-              По одній на рядок: <span className="font-mono">Назва = команда</span>. Плейсхолдери: <span className="font-mono">%f</span> вибрані файли (повні шляхи), <span className="font-mono">%n</span> лише назви,{' '}
-              <span className="font-mono">%d</span> поточна тека. З'являються у контекстному меню серверної панелі.
-            </>
-          }
-        >
+        <Field label={t.settings.customCommands} hint={rich(t.settings.customCommandsHint, { code })}>
           <textarea
             className="input input-mono h-[96px] py-2 resize-y"
             value={commands}
             onChange={(e) => setCommands(e.target.value)}
             onBlur={() => void update({ customCommands: commands })}
-            placeholder={'Розмір тек = du -sh %f\nПрава рекурсивно 644 = chmod -R 644 %f\nПерезапустити nginx = sudo systemctl restart nginx && systemctl status nginx --no-pager'}
+            placeholder={t.settings.customCommandsPlaceholder}
             spellCheck={false}
           />
         </Field>
         <div className="pt-2 border-t border-border flex items-center justify-between text-[12px] text-dim">
-          <span>Гарячі клавіші: F2 перейменувати · F4 редагувати · F5 копіювати · F7 нова тека · Del видалити · Ctrl+L шлях · Ctrl+` термінал</span>
+          <span>{t.settings.shortcuts}</span>
         </div>
       </div>
     </Modal>
@@ -384,16 +386,17 @@ function SettingsDialog({ close }: { close: () => void }) {
 }
 
 function AboutDialog({ close }: { close: () => void }) {
+  const t = useT()
   const version = useApp((s) => s.info?.version)
   return (
-    <Modal title="Про CyberCat" width={400} onClose={close} footer={<Button variant="primary" onClick={close}>Закрити</Button>}>
+    <Modal title={t.dialogs.aboutTitle} width={400} onClose={close} footer={<Button variant="primary" onClick={close}>{t.common.close}</Button>}>
       <div className="flex items-center gap-4">
         <span className="inline-flex items-center justify-center h-14 w-14 rounded-xl bg-accent text-accent-fg">
           <Cat size={30} />
         </span>
         <div>
           <div className="text-[15px] font-semibold">CyberCat {version}</div>
-          <div className="text-[12.5px] text-muted mt-1">Графічний SSH/SFTP файловий менеджер. Electron, React, ssh2, Monaco, xterm.js.</div>
+          <div className="text-[12.5px] text-muted mt-1">{t.dialogs.aboutDescription}</div>
         </div>
       </div>
     </Modal>

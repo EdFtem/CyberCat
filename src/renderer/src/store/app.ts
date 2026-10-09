@@ -19,6 +19,7 @@ import {
   type WatchInfo
 } from '@shared/types'
 import { pathLib, setLocalPlatform } from '@/lib/paths'
+import { setLang, tr } from '@/lib/i18n'
 
 export type PaneId = 'local' | 'remote'
 export type SortKey = 'name' | 'size' | 'mtime' | 'mode'
@@ -60,13 +61,13 @@ export interface EditorDoc {
 }
 
 export interface SessionUI {
-  /** true після першого успішного підключення; панелі показуються навіть якщо список не завантажився */
+  /** true after the first successful connect; panes show even if the listing failed to load */
   initialized: boolean
   panes: Record<PaneId, PaneState>
   activePane: PaneId
   terminalOpen: boolean
   terminalId?: string
-  /** Команда, яку термінал виконає після відкриття (наприклад docker exec) */
+  /** Command the terminal runs once it opens (for example docker exec) */
   terminalCommand?: string
   dockerOpen: boolean
   docs: EditorDoc[]
@@ -232,7 +233,7 @@ function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-/** Лічильники запитів, щоб ігнорувати застарілі відповіді списку */
+/** Request counters, used to ignore stale listing responses */
 const navSeq = new Map<string, number>()
 const refreshTimers = new Map<string, number>()
 
@@ -262,6 +263,7 @@ export const useApp = create<AppStore>((set, get) => ({
     setLocalPlatform(info.platform)
     const settings = await api.settings.get()
     applyTheme(settings.theme)
+    setLang(settings.language)
     const [profiles, sessionList, transfers, extedits, watches, tunnels] = await Promise.all([
       api.profiles.list(),
       api.sessions.list(),
@@ -339,6 +341,7 @@ export const useApp = create<AppStore>((set, get) => ({
   async updateSettings(patch) {
     const next = await api.settings.set(patch)
     if (patch.theme) applyTheme(patch.theme)
+    if (patch.language) setLang(next.language)
     set({ settings: next })
   },
 
@@ -364,7 +367,7 @@ export const useApp = create<AppStore>((set, get) => ({
       await get().loadProfiles()
       return info
     } catch (e) {
-      get().pushToast({ kind: 'error', title: 'Не вдалося підключитися', message: errMsg(e) })
+      get().pushToast({ kind: 'error', title: tr().store.connectFailed, message: errMsg(e) })
       return null
     } finally {
       set({ connecting: false })
@@ -375,7 +378,7 @@ export const useApp = create<AppStore>((set, get) => ({
     try {
       await api.sessions.connect({ sessionId: id })
     } catch (e) {
-      get().pushToast({ kind: 'error', title: 'Не вдалося підключитися', message: errMsg(e) })
+      get().pushToast({ kind: 'error', title: tr().store.connectFailed, message: errMsg(e) })
     }
   },
 
@@ -398,13 +401,14 @@ export const useApp = create<AppStore>((set, get) => ({
       })
     }
     if (dirty.length) {
+      const t = tr().store
       get().openDialog({
         kind: 'confirm',
-        title: 'Закрити з незбереженими змінами?',
-        message: `У цій сесії є незбережені файли. Зміни буде втрачено.`,
+        title: t.closeTabDirtyTitle,
+        message: t.closeTabDirtyMessage,
         details: dirty.map((d) => d.name),
         danger: true,
-        okLabel: 'Закрити без збереження',
+        okLabel: t.closeWithoutSaving,
         onConfirm: doClose
       })
       return
@@ -486,7 +490,7 @@ export const useApp = create<AppStore>((set, get) => ({
       get().setPane(sid, pane, { loading: false, error: errMsg(e) })
       const cur = get().ui[sid]?.panes[pane]
       if (cur && !cur.path) {
-        // Перший перехід не вдався: спробуємо домашню теку
+        // The first navigation failed: fall back to the home folder
         const fallback = pane === 'remote' ? get().sessions[sid]?.homeDir || '/' : get().info?.home || ''
         if (fallback !== p) void get().navigate(sid, pane, fallback)
       }
@@ -568,14 +572,10 @@ export const useApp = create<AppStore>((set, get) => ({
         ui: { ...s.ui, [sid]: { ...s.ui[sid], docs: [...s.ui[sid].docs, doc], activeDocId: doc.id, editorVisible: true } }
       }))
       if (res.truncated) {
-        get().pushToast({
-          kind: 'warning',
-          title: 'Файл завеликий',
-          message: 'Показано лише перші 8 МБ. Збереження вимкнено, скористайтеся зовнішнім редактором.'
-        })
+        get().pushToast({ kind: 'warning', title: tr().store.fileTooLarge, message: tr().store.fileTooLargeMessage })
       }
     } catch (e) {
-      get().pushToast({ kind: 'error', title: 'Не вдалося відкрити файл', message: errMsg(e) })
+      get().pushToast({ kind: 'error', title: tr().store.openFileFailed, message: errMsg(e) })
     }
   },
 
@@ -610,7 +610,7 @@ export const useApp = create<AppStore>((set, get) => ({
         ui: { ...s.ui, [sid]: { ...s.ui[sid], docs: [...s.ui[sid].docs, doc], activeDocId: doc.id, editorVisible: true } }
       }))
     } catch (e) {
-      get().pushToast({ kind: 'error', title: 'Не вдалося відкрити лог', message: errMsg(e) })
+      get().pushToast({ kind: 'error', title: tr().store.openLogFailed, message: errMsg(e) })
     }
   },
 
@@ -626,7 +626,7 @@ export const useApp = create<AppStore>((set, get) => ({
     const doc = get().ui[sid]?.docs.find((d) => d.id === id)
     if (!doc || doc.saving || doc.kind === 'log') return false
     if (doc.truncated) {
-      get().pushToast({ kind: 'error', title: 'Збереження вимкнено', message: 'Файл було відкрито частково.' })
+      get().pushToast({ kind: 'error', title: tr().store.saveDisabled, message: tr().store.saveDisabledMessage })
       return false
     }
     const patch = (p: Partial<EditorDoc>): void =>
@@ -655,21 +655,22 @@ export const useApp = create<AppStore>((set, get) => ({
       }
       patch({ saving: false })
       if (r.conflict) {
+        const t = tr().store
         get().openDialog({
           kind: 'confirm',
-          title: 'Файл змінено ззовні',
-          message: `${doc.name} було змінено після відкриття. Перезаписати чужі зміни?`,
+          title: t.changedExternallyTitle,
+          message: t.changedExternallyMessage(doc.name),
           danger: true,
-          okLabel: 'Перезаписати',
+          okLabel: t.overwrite,
           onConfirm: () => void get().saveDoc(sid, id, true)
         })
         return false
       }
-      get().pushToast({ kind: 'error', title: 'Не вдалося зберегти', message: r.error })
+      get().pushToast({ kind: 'error', title: tr().store.saveFailed, message: r.error })
       return false
     } catch (e) {
       patch({ saving: false })
-      get().pushToast({ kind: 'error', title: 'Не вдалося зберегти', message: errMsg(e) })
+      get().pushToast({ kind: 'error', title: tr().store.saveFailed, message: errMsg(e) })
       return false
     }
   },
@@ -683,12 +684,13 @@ export const useApp = create<AppStore>((set, get) => ({
       force = true
     }
     if (!force && (doc.content !== doc.savedContent || doc.eol !== doc.savedEol)) {
+      const t = tr()
       get().openDialog({
         kind: 'confirm',
-        title: 'Закрити без збереження?',
-        message: `Файл ${doc.name} має незбережені зміни.`,
+        title: t.store.closeDocDirtyTitle,
+        message: t.store.closeDocDirtyMessage(doc.name),
         danger: true,
-        okLabel: 'Закрити',
+        okLabel: t.common.close,
         onConfirm: () => get().closeDoc(sid, id, true)
       })
       return
@@ -790,10 +792,11 @@ export const useApp = create<AppStore>((set, get) => ({
       const info = await api.sessions.sudo(sid, !s.sudo)
       set((st) => ({ sessions: { ...st.sessions, [sid]: info } }))
       void get().refresh(sid, 'remote')
+      const t = tr().store
       get().pushToast({
         kind: info.sudo ? 'warning' : 'info',
-        title: info.sudo ? 'sudo-режим увімкнено' : 'sudo-режим вимкнено',
-        message: info.sudo ? 'Операції на сервері виконуються з правами root. Будьте обережні.' : undefined
+        title: info.sudo ? t.sudoOn : t.sudoOff,
+        message: info.sudo ? t.sudoOnMessage : undefined
       })
     } catch (e) {
       get().pushToast({ kind: 'error', title: 'sudo', message: errMsg(e) })

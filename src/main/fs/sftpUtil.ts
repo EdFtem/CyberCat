@@ -1,6 +1,6 @@
 import type { SFTPWrapper, Stats, FileEntryWithStats, OpenMode } from 'ssh2'
 
-/** Промісифіковані обгортки над SFTP-клієнтом ssh2 */
+/** Promisified wrappers around the ssh2 SFTP client */
 
 export const sftpOpen = (sftp: SFTPWrapper, path: string, flags: OpenMode): Promise<Buffer> =>
   new Promise((res, rej) => sftp.open(path, flags, (e, h) => (e ? rej(e) : res(h))))
@@ -80,13 +80,13 @@ export interface StatVfs {
 export const sftpStatVfs = (sftp: SFTPWrapper, path: string): Promise<StatVfs> =>
   new Promise((res, rej) => sftp.ext_openssh_statvfs(path, (e, s) => (e ? rej(e) : res(s as StatVfs))))
 
-/** Екранування для POSIX-оболонки */
+/** Quoting for a POSIX shell */
 export function shq(s: string): string {
-  // Кожна внутрішня лапка стає '\'' : закрити, екранована лапка, відкрити
+  // Each inner quote becomes '\'' : close, escaped quote, reopen
   return "'" + s.replace(/'/g, "'\\''") + "'"
 }
 
-/** Код помилки SFTP (ssh2 додає поле code до Error) */
+/** SFTP error code (ssh2 adds a code field to Error) */
 export function sftpCode(e: unknown): number | undefined {
   return (e as { code?: number })?.code
 }

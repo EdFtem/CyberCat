@@ -36,7 +36,8 @@ import {
 } from 'lucide-react'
 import { useApp, paneTarget, type PaneId } from '@/store/app'
 import { ops, selectedEntries, parseCustomCommands } from '@/lib/ops'
-import { countLabel, formatBytes } from '@/lib/format'
+import { formatBytes } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/cn'
 import type { FileEntry } from '@shared/types'
 import { IconButton, Spinner, Badge } from '../ui'
@@ -45,6 +46,7 @@ import { FileList, focusPane, getCurrentDrag, useVisibleEntries } from './FileLi
 import { ContextMenu, type MenuItem } from './ContextMenu'
 
 export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
+  const t = useT()
   const paneState = useApp((s) => s.ui[sid]?.panes[pane])
   const active = useApp((s) => s.ui[sid]?.activePane === pane)
   const session = useApp((s) => s.sessions[sid])
@@ -90,7 +92,7 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
     }))
     if (items.length) items.push({ type: 'separator' })
     items.push({
-      label: isBookmarked ? 'Прибрати поточну теку із закладок' : 'Додати поточну теку в закладки',
+      label: isBookmarked ? t.pane.removeBookmark : t.pane.addBookmark,
       icon: <Star size={14} />,
       onClick: () => void ops.toggleBookmark(sid, pane)
     })
@@ -103,58 +105,58 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
     const many = actOn.length > 1
     if (!entry) {
       return [
-        { label: 'Нова тека', icon: <FolderPlus size={14} />, shortcut: 'F7', onClick: () => ops.mkdir(sid, pane) },
-        { label: 'Новий файл', icon: <FilePlus2 size={14} />, shortcut: 'Ctrl+Shift+N', onClick: () => ops.createFile(sid, pane) },
+        { label: t.pane.newFolder, icon: <FolderPlus size={14} />, shortcut: 'F7', onClick: () => ops.mkdir(sid, pane) },
+        { label: t.pane.newFile, icon: <FilePlus2 size={14} />, shortcut: 'Ctrl+Shift+N', onClick: () => ops.createFile(sid, pane) },
         { type: 'separator' },
-        { label: 'Вставити', icon: <ClipboardPaste size={14} />, shortcut: 'Ctrl+V', disabled: !canPaste, onClick: () => void ops.paste(sid, pane) },
-        { label: 'Оновити', icon: <RefreshCw size={14} />, shortcut: 'Ctrl+R', onClick: () => void refresh(sid, pane) },
-        { label: 'Пошук у цій теці…', icon: <FileSearch size={14} />, shortcut: 'Ctrl+Shift+F', onClick: () => ops.search(sid, pane) },
-        ...(isRemote ? [{ label: 'Порівняти з локальною текою…', icon: <GitCompareArrows size={14} />, onClick: () => ops.compare(sid) } as MenuItem] : []),
-        { label: 'Показувати приховані', checked: showHidden, shortcut: 'Ctrl+H', onClick: () => void updateSettings({ showHidden: !showHidden }) },
+        { label: t.pane.paste, icon: <ClipboardPaste size={14} />, shortcut: 'Ctrl+V', disabled: !canPaste, onClick: () => void ops.paste(sid, pane) },
+        { label: t.common.refresh, icon: <RefreshCw size={14} />, shortcut: 'Ctrl+R', onClick: () => void refresh(sid, pane) },
+        { label: t.pane.searchHere, icon: <FileSearch size={14} />, shortcut: 'Ctrl+Shift+F', onClick: () => ops.search(sid, pane) },
+        ...(isRemote ? [{ label: t.pane.compareWithLocalMenu, icon: <GitCompareArrows size={14} />, onClick: () => ops.compare(sid) } as MenuItem] : []),
+        { label: t.pane.showHidden, checked: showHidden, shortcut: 'Ctrl+H', onClick: () => void updateSettings({ showHidden: !showHidden }) },
         { type: 'separator' },
         ...(isRemote
-          ? [{ label: 'Відкрити термінал тут', icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, cur.path) } as MenuItem]
-          : [{ label: 'Показати у Провіднику', icon: <SquareArrowOutUpRight size={14} />, onClick: () => void window.api.app.openPath(cur.path) } as MenuItem]),
-        { label: 'Копіювати шлях теки', icon: <Copy size={14} />, onClick: () => void navigator.clipboard.writeText(cur.path) }
+          ? [{ label: t.pane.openTerminalHere, icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, cur.path) } as MenuItem]
+          : [{ label: t.pane.showInFileManager, icon: <SquareArrowOutUpRight size={14} />, onClick: () => void window.api.app.openPath(cur.path) } as MenuItem]),
+        { label: t.pane.copyFolderPath, icon: <Copy size={14} />, onClick: () => void navigator.clipboard.writeText(cur.path) }
       ]
     }
     const items: MenuItem[] = []
     if (!many) {
-      items.push({ label: entry.isDir ? 'Відкрити' : 'Відкрити у редакторі', icon: <FilePen size={14} />, shortcut: 'Enter', onClick: () => ops.openEntry(sid, pane, entry) })
-      if (!entry.isDir && isRemote) items.push({ label: 'Редагувати у зовнішньому редакторі', icon: <SquareArrowOutUpRight size={14} />, shortcut: 'Shift+F4', onClick: () => ops.editExternal(sid, pane, entry) })
-      if (!entry.isDir && !isRemote) items.push({ label: 'Відкрити системною програмою', icon: <SquareArrowOutUpRight size={14} />, onClick: () => void window.api.app.openPath(entry.path) })
-      if (!entry.isDir) items.push({ label: 'Стежити за логом', icon: <ScrollText size={14} />, onClick: () => ops.tailLog(sid, pane, entry) })
-      if (!isRemote && !entry.isDrive) items.push({ label: 'Показати у Провіднику', icon: <FolderInput size={14} />, onClick: () => ops.revealLocal(entry) })
+      items.push({ label: entry.isDir ? t.common.open : t.pane.openInEditor, icon: <FilePen size={14} />, shortcut: 'Enter', onClick: () => ops.openEntry(sid, pane, entry) })
+      if (!entry.isDir && isRemote) items.push({ label: t.pane.editExternal, icon: <SquareArrowOutUpRight size={14} />, shortcut: 'Shift+F4', onClick: () => ops.editExternal(sid, pane, entry) })
+      if (!entry.isDir && !isRemote) items.push({ label: t.pane.openWithSystem, icon: <SquareArrowOutUpRight size={14} />, onClick: () => void window.api.app.openPath(entry.path) })
+      if (!entry.isDir) items.push({ label: t.pane.followLog, icon: <ScrollText size={14} />, onClick: () => ops.tailLog(sid, pane, entry) })
+      if (!isRemote && !entry.isDrive) items.push({ label: t.pane.showInFileManager, icon: <FolderInput size={14} />, onClick: () => ops.revealLocal(entry) })
       items.push({ type: 'separator' })
     }
     items.push({
-      label: isRemote ? `Завантажити ${many ? countLabel(actOn.length, 'елемент', 'елементи', 'елементів') : ''} на комп’ютер` : `Відвантажити ${many ? countLabel(actOn.length, 'елемент', 'елементи', 'елементів') : ''} на сервер`,
+      label: isRemote ? t.pane.downloadToComputer(actOn.length) : t.pane.uploadToServer(actOn.length),
       icon: isRemote ? <Download size={14} /> : <Upload size={14} />,
       shortcut: 'F5',
       disabled: actOn.some((e) => e.isDrive),
       onClick: () => ops.transfer(sid, pane, actOn)
     })
     items.push({
-      label: isRemote ? 'Перемістити на комп\u2019ютер' : 'Перемістити на сервер',
+      label: isRemote ? t.pane.moveToComputer : t.pane.moveToServer,
       icon: <FolderInput size={14} />,
       shortcut: 'F6',
       disabled: actOn.some((e) => e.isDrive),
       onClick: () => ops.moveToOtherPane(sid, pane, actOn)
     })
-    items.push({ label: 'Перемістити в теку…', icon: <FolderInput size={14} />, shortcut: 'Shift+F6', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.moveTo(sid, pane, actOn) })
+    items.push({ label: t.pane.moveToFolder, icon: <FolderInput size={14} />, shortcut: 'Shift+F6', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.moveTo(sid, pane, actOn) })
     items.push({ type: 'separator' })
-    items.push({ label: 'Копіювати', icon: <Copy size={14} />, shortcut: 'Ctrl+C', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.copyToClipboard(sid, pane, actOn, false) })
-    items.push({ label: 'Вирізати', icon: <Scissors size={14} />, shortcut: 'Ctrl+X', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.copyToClipboard(sid, pane, actOn, true) })
-    items.push({ label: 'Вставити', icon: <ClipboardPaste size={14} />, shortcut: 'Ctrl+V', disabled: !canPaste, onClick: () => void ops.paste(sid, pane) })
+    items.push({ label: t.common.copy, icon: <Copy size={14} />, shortcut: 'Ctrl+C', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.copyToClipboard(sid, pane, actOn, false) })
+    items.push({ label: t.pane.cut, icon: <Scissors size={14} />, shortcut: 'Ctrl+X', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.copyToClipboard(sid, pane, actOn, true) })
+    items.push({ label: t.pane.paste, icon: <ClipboardPaste size={14} />, shortcut: 'Ctrl+V', disabled: !canPaste, onClick: () => void ops.paste(sid, pane) })
     items.push({ type: 'separator' })
-    if (!many) items.push({ label: 'Перейменувати', icon: <Pencil size={14} />, shortcut: 'F2', disabled: entry.isDrive, onClick: () => setPane(sid, pane, { renaming: entry.path }) })
-    if (many) items.push({ label: 'Масове перейменування…', icon: <TextCursorInput size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.massRename(sid, pane, actOn) })
-    items.push({ label: 'Видалити', icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.deleteEntries(sid, pane, actOn) })
+    if (!many) items.push({ label: t.common.rename, icon: <Pencil size={14} />, shortcut: 'F2', disabled: entry.isDrive, onClick: () => setPane(sid, pane, { renaming: entry.path }) })
+    if (many) items.push({ label: t.pane.batchRename, icon: <TextCursorInput size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.massRename(sid, pane, actOn) })
+    items.push({ label: t.common.delete, icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.deleteEntries(sid, pane, actOn) })
     items.push({ type: 'separator' })
-    items.push({ label: 'Права доступу…', icon: <ShieldCheck size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.chmod(sid, pane, actOn) })
-    items.push({ label: 'Копіювати шлях', icon: <Copy size={14} />, shortcut: 'Ctrl+Shift+C', onClick: () => ops.copyPath(actOn) })
-    if (isRemote && entry.isDir && !many) items.push({ label: 'Відкрити термінал тут', icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, entry.path) })
-    if (!many) items.push({ label: 'Властивості', icon: <Info size={14} />, onClick: () => ops.properties(sid, pane, entry) })
+    items.push({ label: t.pane.permissionsMenu, icon: <ShieldCheck size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.chmod(sid, pane, actOn) })
+    items.push({ label: t.pane.copyPath, icon: <Copy size={14} />, shortcut: 'Ctrl+Shift+C', onClick: () => ops.copyPath(actOn) })
+    if (isRemote && entry.isDir && !many) items.push({ label: t.pane.openTerminalHere, icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, entry.path) })
+    if (!many) items.push({ label: t.pane.properties, icon: <Info size={14} />, onClick: () => ops.properties(sid, pane, entry) })
     if (customCommands.length) {
       items.push({ type: 'separator' })
       for (const c of customCommands) items.push({ label: c.name, icon: <Play size={14} />, onClick: () => ops.runCustomCommand(sid, pane, actOn, c) })
@@ -212,74 +214,74 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         }
       }}
     >
-      {/* Заголовок */}
+      {/* Header */}
       <div className="flex items-center gap-1.5 px-2 h-10 border-b border-border">
         <span
           className={cn(
             'inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[12px] font-medium shrink-0',
             isRemote ? 'bg-accent-soft text-accent' : 'bg-surface-3 text-muted'
           )}
-          title={isRemote ? `${session?.username}@${session?.host}` : 'Локальний комп’ютер'}
+          title={isRemote ? `${session?.username}@${session?.host}` : t.pane.localComputer}
         >
           {isRemote ? <Server size={13} /> : <Laptop size={13} />}
-          {isRemote ? session?.host ?? 'Сервер' : 'Локально'}
+          {isRemote ? session?.host ?? t.common.server : t.common.local}
         </span>
         {isRemote && session?.sudo && (
-          <span title={session.sudoFiles ? 'Файли й команди виконуються від root' : 'Команди від root, файлові операції від вашого користувача: на сервері немає sftp-server'}>
-            <Badge tone={session.sudoFiles ? 'danger' : 'warning'}>{session.sudoFiles ? 'root' : 'root: команди'}</Badge>
+          <span title={session.sudoFiles ? t.pane.sudoFilesTitle : t.pane.sudoCommandsTitle}>
+            <Badge tone={session.sudoFiles ? 'danger' : 'warning'}>{session.sudoFiles ? 'root' : t.pane.sudoCommandsBadge}</Badge>
           </span>
         )}
-        <IconButton title="Назад" onClick={() => goBack(sid, pane)} disabled={paneState.historyIndex <= 0}>
+        <IconButton title={t.pane.back} onClick={() => goBack(sid, pane)} disabled={paneState.historyIndex <= 0}>
           <ChevronLeft size={16} />
         </IconButton>
-        <IconButton title="Вперед" onClick={() => goForward(sid, pane)} disabled={paneState.historyIndex >= paneState.history.length - 1}>
+        <IconButton title={t.pane.forward} onClick={() => goForward(sid, pane)} disabled={paneState.historyIndex >= paneState.history.length - 1}>
           <ChevronRight size={16} />
         </IconButton>
-        <IconButton title="Вгору (Backspace)" onClick={() => goUp(sid, pane)}>
+        <IconButton title={t.pane.up} onClick={() => goUp(sid, pane)}>
           <ArrowUp size={16} />
         </IconButton>
-        <IconButton title="Домашня тека" onClick={() => void goHome(sid, pane)}>
+        <IconButton title={t.pane.homeFolder} onClick={() => void goHome(sid, pane)}>
           <House size={15} />
         </IconButton>
         <PathBar sid={sid} pane={pane} editRequest={editRequest} />
-        <IconButton title="Закладки" active={isBookmarked} onClick={(e) => setBookmarkMenu({ x: e.clientX, y: e.clientY })}>
+        <IconButton title={t.pane.bookmarks} active={isBookmarked} onClick={(e) => setBookmarkMenu({ x: e.clientX, y: e.clientY })}>
           <Star size={15} fill={isBookmarked ? 'currentColor' : 'none'} />
         </IconButton>
-        <IconButton title="Оновити (Ctrl+R)" onClick={() => void refresh(sid, pane)}>
+        <IconButton title={t.pane.refreshHint} onClick={() => void refresh(sid, pane)}>
           {paneState.loading ? <Spinner size={14} /> : <RefreshCw size={15} />}
         </IconButton>
       </div>
 
-      {/* Панель дій */}
+      {/* Action bar */}
       <div className="flex items-center gap-1 px-2 h-9 border-b border-border">
-        <IconButton title="Нова тека (F7)" onClick={() => ops.mkdir(sid, pane)}>
+        <IconButton title={t.pane.newFolderHint} onClick={() => ops.mkdir(sid, pane)}>
           <FolderPlus size={15} />
         </IconButton>
-        <IconButton title="Новий файл (Ctrl+Shift+N)" onClick={() => ops.createFile(sid, pane)}>
+        <IconButton title={t.pane.newFileHint} onClick={() => ops.createFile(sid, pane)}>
           <FilePlus2 size={15} />
         </IconButton>
         <span className="w-px h-5 bg-border mx-1" />
         <IconButton
-          title={isRemote ? 'Завантажити вибране на комп’ютер (F5)' : 'Відвантажити вибране на сервер (F5)'}
+          title={isRemote ? t.pane.downloadSelectedHint : t.pane.uploadSelectedHint}
           disabled={!selected.length}
           onClick={() => ops.transfer(sid, pane, selected)}
         >
           {isRemote ? <Download size={15} /> : <Upload size={15} />}
         </IconButton>
-        <IconButton title="Перейменувати (F2)" disabled={selected.length !== 1} onClick={() => setPane(sid, pane, { renaming: selected[0].path })}>
+        <IconButton title={t.pane.renameHint} disabled={selected.length !== 1} onClick={() => setPane(sid, pane, { renaming: selected[0].path })}>
           <Pencil size={15} />
         </IconButton>
-        <IconButton title="Видалити (Del)" disabled={!selected.length} danger onClick={() => ops.deleteEntries(sid, pane, selected)}>
+        <IconButton title={t.pane.deleteHint} disabled={!selected.length} danger onClick={() => ops.deleteEntries(sid, pane, selected)}>
           <Trash2 size={15} />
         </IconButton>
-        <IconButton title="Права доступу" disabled={!selected.length} onClick={() => ops.chmod(sid, pane, selected)}>
+        <IconButton title={t.pane.permissions} disabled={!selected.length} onClick={() => ops.chmod(sid, pane, selected)}>
           <ShieldCheck size={15} />
         </IconButton>
         <span className="flex-1" />
         {isRemote && (
           <>
             <IconButton
-              title={session?.sudo ? 'Вимкнути sudo-режим' : 'sudo-режим: операції з правами root'}
+              title={session?.sudo ? t.pane.sudoOff : t.pane.sudoOn}
               active={!!session?.sudo}
               danger={!!session?.sudo}
               disabled={!session?.hasShell || session?.status !== 'connected'}
@@ -287,22 +289,22 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
             >
               <ShieldAlert size={15} />
             </IconButton>
-            <IconButton title="Порівняти з локальною текою" onClick={() => ops.compare(sid)}>
+            <IconButton title={t.pane.compareWithLocal} onClick={() => ops.compare(sid)}>
               <GitCompareArrows size={15} />
             </IconButton>
-            <IconButton title="Термінал у цій теці" onClick={() => ops.openTerminalHere(sid, paneState.path)}>
+            <IconButton title={t.pane.terminalHere} onClick={() => ops.openTerminalHere(sid, paneState.path)}>
               <Terminal size={15} />
             </IconButton>
           </>
         )}
-        <IconButton title="Пошук (Ctrl+Shift+F)" onClick={() => ops.search(sid, pane)}>
+        <IconButton title={t.pane.searchHint} onClick={() => ops.search(sid, pane)}>
           <FileSearch size={15} />
         </IconButton>
-        <IconButton title={showHidden ? 'Сховати приховані (Ctrl+H)' : 'Показати приховані (Ctrl+H)'} active={showHidden} onClick={() => void updateSettings({ showHidden: !showHidden })}>
+        <IconButton title={showHidden ? t.pane.hideHiddenHint : t.pane.showHiddenHint} active={showHidden} onClick={() => void updateSettings({ showHidden: !showHidden })}>
           {showHidden ? <Eye size={15} /> : <EyeOff size={15} />}
         </IconButton>
         <IconButton
-          title="Фільтр (Ctrl+F)"
+          title={t.pane.filterHint}
           active={paneState.filterOpen || !!paneState.filter}
           onClick={() => {
             setPane(sid, pane, { filterOpen: !paneState.filterOpen, filter: paneState.filterOpen ? '' : paneState.filter })
@@ -319,7 +321,7 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
           <input
             id={`filter-${sid}-${pane}`}
             className="input h-7 flex-1"
-            placeholder="Фільтр за назвою…"
+            placeholder={t.pane.filterPlaceholder}
             value={paneState.filter}
             onChange={(e) => setPane(sid, pane, { filter: e.target.value })}
             onKeyDown={(e) => {
@@ -333,7 +335,7 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
               }
             }}
           />
-          <IconButton title="Закрити фільтр" size={24} onClick={() => setPane(sid, pane, { filter: '', filterOpen: false })}>
+          <IconButton title={t.pane.closeFilter} size={24} onClick={() => setPane(sid, pane, { filter: '', filterOpen: false })}>
             <X size={14} />
           </IconButton>
         </div>
@@ -345,22 +347,21 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         onContextMenu={(e, entry) => setMenu({ x: e.clientX, y: e.clientY, entry })}
       />
 
-      {/* Підвал */}
+      {/* Footer */}
       <div className="flex items-center gap-3 px-3 h-7 border-t border-border text-[11.5px] text-dim">
         <span>
-          {countLabel(visible.length, 'елемент', 'елементи', 'елементів')}
-          {paneState.entries.length !== visible.length && ` з ${paneState.entries.length}`}
+          {paneState.entries.length !== visible.length ? t.pane.itemsOf(visible.length, paneState.entries.length) : t.common.items(visible.length)}
         </span>
         {selected.length > 0 && (
           <span className="text-muted">
-            Вибрано {selected.length}
+            {t.pane.selectedCount(selected.length)}
             {selectedSize > 0 && ` · ${formatBytes(selectedSize)}`}
           </span>
         )}
         <span className="flex-1" />
         {paneState.disk && (
-          <span title={`Вільно ${formatBytes(paneState.disk.free)} з ${formatBytes(paneState.disk.total)}`}>
-            Вільно {formatBytes(paneState.disk.free)}
+          <span title={t.pane.diskFreeOf(formatBytes(paneState.disk.free), formatBytes(paneState.disk.total))}>
+            {t.pane.diskFree(formatBytes(paneState.disk.free))}
           </span>
         )}
       </div>

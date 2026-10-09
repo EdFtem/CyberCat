@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ArrowRight, TriangleAlert } from 'lucide-react'
 import { useApp, paneTarget, type PaneId } from '@/store/app'
 import { pathLib } from '@/lib/paths'
-import { countLabel } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/cn'
 import type { FileEntry } from '@shared/types'
 import { Button, Checkbox, Field, Modal, Segmented } from '../ui'
@@ -25,6 +25,7 @@ function dateOf(ms: number): string {
 }
 
 export function MassRenameDialog({ sessionId, pane, entries, close }: { sessionId: string; pane: PaneId; entries: FileEntry[]; close: () => void }) {
+  const t = useT()
   const refresh = useApp((s) => s.refresh)
   const setPane = useApp((s) => s.setPane)
   const pushToast = useApp((s) => s.pushToast)
@@ -76,14 +77,14 @@ export function MassRenameDialog({ sessionId, pane, entries, close }: { sessionI
       regexError,
       rows: rows.map((r) => {
         let problem: string | null = null
-        if (!r.next || r.next === '.' || r.next === '..') problem = 'порожня назва'
-        else if (/[/\\]/.test(r.next)) problem = 'містить / або \\'
-        else if ((seen.get(r.next) ?? 0) > 1) problem = 'дублікат у списку'
-        else if (r.next !== r.entry.name && siblingNames.has(r.next) && !selectedNames.has(r.next)) problem = 'файл уже існує'
+        if (!r.next || r.next === '.' || r.next === '..') problem = t.massRename.problemEmpty
+        else if (/[/\\]/.test(r.next)) problem = t.massRename.problemSlash
+        else if ((seen.get(r.next) ?? 0) > 1) problem = t.massRename.problemDuplicate
+        else if (r.next !== r.entry.name && siblingNames.has(r.next) && !selectedNames.has(r.next)) problem = t.massRename.problemExists
         return { ...r, changed: r.next !== r.entry.name, problem }
       })
     }
-  }, [entries, siblings, mode, find, replaceWith, useRegex, ignoreCase, template, start, width, lower])
+  }, [entries, siblings, mode, find, replaceWith, useRegex, ignoreCase, template, start, width, lower, t])
 
   const toApply = preview.rows.filter((r) => r.changed && !r.problem)
   const hasProblems = preview.rows.some((r) => r.changed && r.problem)
@@ -104,26 +105,26 @@ export function MassRenameDialog({ sessionId, pane, entries, close }: { sessionI
     }
     await refresh(sessionId, pane)
     if (renamed.length) setPane(sessionId, pane, { selected: renamed, cursor: renamed[0] })
-    if (errors.length) pushToast({ kind: 'error', title: 'Не все вдалося перейменувати', message: errors.join('\n') })
-    else pushToast({ kind: 'success', title: 'Перейменовано', message: countLabel(renamed.length, 'елемент', 'елементи', 'елементів') })
+    if (errors.length) pushToast({ kind: 'error', title: t.massRename.partialFailure, message: errors.join('\n') })
+    else pushToast({ kind: 'success', title: t.massRename.renamed, message: t.common.items(renamed.length) })
     setBusy(false)
     close()
   }
 
   return (
     <Modal
-      title={`Масове перейменування · ${countLabel(entries.length, 'елемент', 'елементи', 'елементів')}`}
+      title={t.massRename.title(entries.length)}
       width={760}
       onClose={close}
       footer={
         <>
           <span className="mr-auto text-[12px] text-dim">
-            {toApply.length ? `Зміниться ${toApply.length}` : 'Немає змін'}
-            {hasProblems && ' · є конфлікти'}
+            {toApply.length ? t.massRename.willChange(toApply.length) : t.massRename.noChanges}
+            {hasProblems && ` · ${t.massRename.hasConflicts}`}
           </span>
-          <Button onClick={close}>Скасувати</Button>
+          <Button onClick={close}>{t.common.cancel}</Button>
           <Button variant="primary" onClick={() => void apply()} disabled={!toApply.length || hasProblems || !!preview.regexError} loading={busy}>
-            Перейменувати
+            {t.common.rename}
           </Button>
         </>
       }
@@ -132,38 +133,38 @@ export function MassRenameDialog({ sessionId, pane, entries, close }: { sessionI
         value={mode}
         onChange={setMode}
         options={[
-          { value: 'replace', label: 'Знайти і замінити' },
-          { value: 'template', label: 'За шаблоном' }
+          { value: 'replace', label: t.massRename.modeReplace },
+          { value: 'template', label: t.massRename.modeTemplate }
         ]}
       />
 
       {mode === 'replace' ? (
         <div className="mt-3 grid grid-cols-2 gap-3">
-          <Field label="Знайти" error={preview.regexError}>
+          <Field label={t.massRename.find} error={preview.regexError}>
             <input className="input input-mono" value={find} onChange={(e) => setFind(e.target.value)} autoFocus spellCheck={false} placeholder={useRegex ? '^(\\d+)-' : 'draft'} />
           </Field>
-          <Field label="Замінити на" hint={useRegex ? 'Групи доступні як $1, $2' : undefined}>
+          <Field label={t.massRename.replaceWith} hint={useRegex ? t.massRename.groupsHint : undefined}>
             <input className="input input-mono" value={replaceWith} onChange={(e) => setReplaceWith(e.target.value)} spellCheck={false} placeholder={useRegex ? '$1_' : 'final'} />
           </Field>
           <div className="col-span-2 flex flex-wrap gap-5">
-            <Checkbox checked={useRegex} onChange={setUseRegex} label="Регулярний вираз" />
-            <Checkbox checked={ignoreCase} onChange={setIgnoreCase} label="Без урахування регістру" />
-            <Checkbox checked={lower} onChange={setLower} label="Усе в нижній регістр" />
+            <Checkbox checked={useRegex} onChange={setUseRegex} label={t.massRename.regex} />
+            <Checkbox checked={ignoreCase} onChange={setIgnoreCase} label={t.massRename.ignoreCase} />
+            <Checkbox checked={lower} onChange={setLower} label={t.massRename.lowercase} />
           </div>
         </div>
       ) : (
         <div className="mt-3 grid grid-cols-[1fr_110px_110px] gap-3">
-          <Field label="Шаблон" hint="{name} ім'я без розширення, {ext} розширення з крапкою, {n} номер, {date} дата зміни">
+          <Field label={t.massRename.template} hint={t.massRename.templateHint}>
             <input className="input input-mono" value={template} onChange={(e) => setTemplate(e.target.value)} autoFocus spellCheck={false} />
           </Field>
-          <Field label="Початок {n}">
+          <Field label={t.massRename.start}>
             <input className="input input-mono" type="number" value={start} onChange={(e) => setStart(Number(e.target.value) || 0)} />
           </Field>
-          <Field label="Розрядів">
+          <Field label={t.massRename.digits}>
             <input className="input input-mono" type="number" min={1} max={6} value={width} onChange={(e) => setWidth(Math.max(1, Math.min(6, Number(e.target.value) || 1)))} />
           </Field>
           <div className="col-span-3 flex gap-5">
-            <Checkbox checked={lower} onChange={setLower} label="Усе в нижній регістр" />
+            <Checkbox checked={lower} onChange={setLower} label={t.massRename.lowercase} />
           </div>
         </div>
       )}

@@ -10,6 +10,7 @@ import { externalEditor } from './editor/ExternalEditor'
 import { transfers } from './transfer/TransferManager'
 import { terminals } from './terminal/TerminalService'
 import { answerPrompt } from './prompter'
+import { tr } from './i18n'
 import { importSshHosts, listSshConfigHosts } from './ssh/sshConfig'
 import { tails } from './tail/TailService'
 import { runSearch } from './search/SearchService'
@@ -32,14 +33,14 @@ import type {
 
 type Handler = (...args: never[]) => unknown
 
-/** Обгортка: повертає {ok,data} або {ok:false,error}, щоб renderer бачив чисте повідомлення */
+/** Wrapper: returns {ok,data} or {ok:false,error} so the renderer gets a clean message */
 function handle(channel: string, fn: Handler): void {
   ipcMain.handle(channel, async (_e, ...args) => {
     try {
       const data = await (fn as (...a: unknown[]) => unknown)(...args)
       return { ok: true, data }
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
+      const message = (e instanceof Error ? e.message : String(e)) || tr().common.unknownError
       return { ok: false, error: message }
     }
   })
@@ -60,7 +61,7 @@ export function registerIpc(): void {
   handle('app:pickFile', async (opts?: { title?: string; defaultPath?: string }) => {
     const win = focusedWindow()
     const r = await dialog.showOpenDialog(win!, {
-      title: opts?.title ?? 'Оберіть файл',
+      title: opts?.title ?? tr().main.app.pickFile,
       defaultPath: opts?.defaultPath ?? join(homedir(), '.ssh'),
       properties: ['openFile', 'showHiddenFiles']
     })
@@ -69,7 +70,7 @@ export function registerIpc(): void {
   handle('app:pickDirectory', async (opts?: { title?: string; defaultPath?: string }) => {
     const win = focusedWindow()
     const r = await dialog.showOpenDialog(win!, {
-      title: opts?.title ?? 'Оберіть теку',
+      title: opts?.title ?? tr().main.app.pickFolder,
       defaultPath: opts?.defaultPath ?? homedir(),
       properties: ['openDirectory']
     })
@@ -81,7 +82,7 @@ export function registerIpc(): void {
   })
   handle('app:showInFolder', (p: string) => shell.showItemInFolder(p))
   handle('app:openExternal', async (url: string) => {
-    if (!/^https?:\/\//i.test(url)) throw new Error('Дозволено лише http(s) посилання')
+    if (!/^https?:\/\//i.test(url)) throw new Error(tr().main.app.httpOnly)
     await shell.openExternal(url)
   })
   handle('app:setTitleBarOverlay', (o: { color: string; symbolColor: string }) => {
@@ -89,7 +90,7 @@ export function registerIpc(): void {
     try {
       win?.setTitleBarOverlay?.({ color: o.color, symbolColor: o.symbolColor, height: 40 })
     } catch {
-      /* не підтримується на цій платформі */
+      /* not supported on this platform */
     }
   })
 

@@ -104,7 +104,7 @@ export async function runCompare(req: CompareRequest): Promise<CompareResult> {
         try {
           localHash = await sha256Local(localFs.join(req.localDir, ...rel.split('/')))
         } catch {
-          /* нечитабельний файл */
+          /* unreadable file */
         }
         const l = L.get(rel)!
         const rr = R.get(rel)!

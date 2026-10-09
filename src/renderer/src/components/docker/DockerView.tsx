@@ -26,7 +26,7 @@ import {
 import { useApp } from '@/store/app'
 import { ops } from '@/lib/ops'
 import { cn } from '@/lib/cn'
-import { countLabel } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import type { DockerContainer, DockerContainerAction, DockerDiskUsage, DockerImage, DockerInfo, DockerPort, DockerVolume } from '@shared/types'
 import { Badge, Button, EmptyState, IconButton, Segmented, Spinner } from '../ui'
 
@@ -48,6 +48,7 @@ function stateTone(c: DockerContainer): 'success' | 'warning' | 'danger' | 'neut
 const toneDot: Record<string, string> = { success: 'bg-success', warning: 'bg-warning pulse', danger: 'bg-danger', neutral: 'bg-dim' }
 
 export function DockerView({ sid }: { sid: string }) {
+  const t = useT()
   const session = useApp((s) => s.sessions[sid])
   const setDockerOpen = useApp((s) => s.setDockerOpen)
   const pushToast = useApp((s) => s.pushToast)
@@ -107,8 +108,8 @@ export function DockerView({ sid }: { sid: string }) {
   }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!auto || tab !== 'containers') return
-    const t = window.setInterval(() => void load(true, false), 5000)
-    return () => window.clearInterval(t)
+    const timer = window.setInterval(() => void load(true, false), 5000)
+    return () => window.clearInterval(timer)
   }, [auto, tab, load])
 
   const mark = (id: string, on: boolean): void =>
@@ -134,10 +135,10 @@ export function DockerView({ sid }: { sid: string }) {
   const confirmRemove = (c: DockerContainer): void =>
     openDialog({
       kind: 'confirm',
-      title: `Видалити контейнер ${c.name}?`,
-      message: c.state === 'running' ? 'Контейнер запущено, його буде зупинено примусово. Дані в іменованих томах залишаться.' : 'Дані в іменованих томах залишаться.',
+      title: t.docker.removeContainerTitle(c.name),
+      message: c.state === 'running' ? t.docker.removeRunningMessage : t.docker.removeStoppedMessage,
       danger: true,
-      okLabel: 'Видалити',
+      okLabel: t.docker.remove,
       onConfirm: () => act(c, 'rm', c.state === 'running')
     })
 
@@ -145,11 +146,11 @@ export function DockerView({ sid }: { sid: string }) {
     if (!p.hostPort) return
     try {
       const host = p.hostIp && p.hostIp !== '0.0.0.0' ? p.hostIp : '127.0.0.1'
-      const t = await api.tunnel.start(sid, host, p.hostPort)
-      await api.app.openExternal(`http://localhost:${t.localPort}`)
-      pushToast({ kind: 'info', title: 'Тунель відкрито', message: `localhost:${t.localPort} → ${host}:${p.hostPort} на сервері. Зупинити можна у меню тунелів у заголовку.` })
+      const tun = await api.tunnel.start(sid, host, p.hostPort)
+      await api.app.openExternal(`http://localhost:${tun.localPort}`)
+      pushToast({ kind: 'info', title: t.docker.tunnelOpened, message: t.docker.tunnelOpenedMessage(tun.localPort, host, p.hostPort) })
     } catch (e) {
-      pushToast({ kind: 'error', title: 'Не вдалося відкрити тунель', message: errMsg(e) })
+      pushToast({ kind: 'error', title: t.docker.tunnelFailed, message: errMsg(e) })
     }
   }
 
@@ -166,8 +167,8 @@ export function DockerView({ sid }: { sid: string }) {
     if (danger) {
       openDialog({
         kind: 'confirm',
-        title: `compose ${action} для ${project}?`,
-        message: 'Контейнери проєкту буде зупинено й видалено. Томи залишаться.',
+        title: t.docker.composeConfirmTitle(action, project),
+        message: t.docker.composeDownMessage,
         danger: true,
         okLabel: action,
         onConfirm: run
@@ -196,19 +197,19 @@ export function DockerView({ sid }: { sid: string }) {
 
   const running = containers.filter((c) => c.state === 'running').length
 
-  // ---- стани без Docker
+  // ---- states without Docker
   if (info && (!info.available || info.error)) {
     return (
       <div className="flex-1 min-h-0 bg-surface rounded-lg border border-border flex flex-col">
         <Header />
-        <EmptyState icon={<Container size={36} />} title={info.available ? 'Docker є, але недоступний' : 'Docker не знайдено'} description={info.error}>
+        <EmptyState icon={<Container size={36} />} title={info.available ? t.docker.notAccessible : t.docker.notFound} description={info.error}>
           {info.needsSudo && (
             <Button variant="primary" icon={<ShieldAlert size={14} />} onClick={() => void toggleSudo(sid)}>
-              Увімкнути sudo-режим
+              {t.docker.enableSudo}
             </Button>
           )}
           <Button icon={<RefreshCw size={14} />} onClick={() => void load(false, true)}>
-            Перевірити знову
+            {t.docker.checkAgain}
           </Button>
         </EmptyState>
       </div>
@@ -218,8 +219,8 @@ export function DockerView({ sid }: { sid: string }) {
   function Header() {
     return (
       <div className="flex items-center gap-2 px-3 h-10 border-b border-border">
-        <Button size="sm" variant="ghost" icon={<ArrowLeft size={14} />} onClick={() => setDockerOpen(sid, false)} title="До файлів (Ctrl+Shift+D)">
-          Файли
+        <Button size="sm" variant="ghost" icon={<ArrowLeft size={14} />} onClick={() => setDockerOpen(sid, false)} title={t.docker.backToFiles}>
+          {t.docker.files}
         </Button>
         <span className="w-px h-5 bg-border mx-1" />
         <span className="inline-flex items-center gap-1.5 text-[13px] font-medium">
@@ -239,16 +240,16 @@ export function DockerView({ sid }: { sid: string }) {
               value={tab}
               onChange={setTab}
               options={[
-                { value: 'containers', label: 'Контейнери', icon: <Boxes size={13} /> },
-                { value: 'images', label: 'Образи', icon: <Layers size={13} /> },
-                { value: 'volumes', label: 'Томи', icon: <HardDrive size={13} /> }
+                { value: 'containers', label: t.docker.tabContainers, icon: <Boxes size={13} /> },
+                { value: 'images', label: t.docker.tabImages, icon: <Layers size={13} /> },
+                { value: 'volumes', label: t.docker.tabVolumes, icon: <HardDrive size={13} /> }
               ]}
             />
             <div className="relative w-56">
               <Search size={13} className="absolute left-2.5 top-[8px] text-dim" />
-              <input className="input h-7 pl-7" placeholder="Фільтр…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+              <input className="input h-7 pl-7" placeholder={t.docker.filterPlaceholder} value={filter} onChange={(e) => setFilter(e.target.value)} />
             </div>
-            <IconButton title={auto ? 'Автооновлення кожні 5 с увімкнено' : 'Автооновлення вимкнено'} active={auto} onClick={() => setAuto((a) => !a)}>
+            <IconButton title={auto ? t.docker.autoRefreshOn : t.docker.autoRefreshOff} active={auto} onClick={() => setAuto((a) => !a)}>
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             </IconButton>
           </>
@@ -270,20 +271,20 @@ export function DockerView({ sid }: { sid: string }) {
         )}
 
         {tab === 'containers' && !loading && containers.length === 0 && !error && (
-          <EmptyState icon={<Boxes size={32} />} title="Контейнерів немає" description="Запустіть щось через docker run або compose up, і воно з'явиться тут." />
+          <EmptyState icon={<Boxes size={32} />} title={t.docker.noContainers} description={t.docker.noContainersHint} />
         )}
 
         {tab === 'containers' &&
           groups.map(([project, group]) => (
             <div key={project || '__standalone'} className="mb-2">
               <div className="sticky top-0 z-10 flex items-center gap-2 px-3 h-9 bg-surface-2 border-b border-border/60 text-[12px]">
-                <span className="font-medium">{project ? `compose · ${project}` : 'Окремі контейнери'}</span>
-                <span className="text-dim">{countLabel(group.length, 'контейнер', 'контейнери', 'контейнерів')}</span>
+                <span className="font-medium">{project ? `compose · ${project}` : t.docker.standalone}</span>
+                <span className="text-dim">{t.docker.containers(group.length)}</span>
                 <span className="flex-1" />
                 {project && info?.compose && (
                   <>
                     {group[0].composeFiles?.[0] && (
-                      <IconButton title={`Відкрити ${group[0].composeFiles[0]}`} size={26} onClick={() => openComposeFile(group)}>
+                      <IconButton title={t.docker.openFile(group[0].composeFiles[0])} size={26} onClick={() => openComposeFile(group)}>
                         <FileCode size={14} />
                       </IconButton>
                     )}
@@ -314,17 +315,15 @@ export function DockerView({ sid }: { sid: string }) {
 
       <div className="flex items-center gap-4 px-3 h-7 border-t border-border text-[11.5px] text-dim">
         {tab === 'containers' && (
-          <span>
-            {running} запущено з {containers.length}
-          </span>
+          <span>{t.docker.runningOf(running, containers.length)}</span>
         )}
         {tab !== 'containers' && df.length > 0 && (
           <span>
-            {df.map((d) => `${d.type}: ${d.size}${d.reclaimable && d.reclaimable !== '0B' ? ` (можна звільнити ${d.reclaimable})` : ''}`).join(' · ')}
+            {df.map((d) => `${d.type}: ${d.size}${d.reclaimable && d.reclaimable !== '0B' ? ` ${t.docker.reclaimable(d.reclaimable)}` : ''}`).join(' · ')}
           </span>
         )}
         <span className="flex-1" />
-        <span>Клік по порту відкриває тунель у браузері</span>
+        <span>{t.docker.portHint}</span>
       </div>
     </div>
   )
@@ -345,6 +344,7 @@ function ContainerRow({
   onRemove: (c: DockerContainer) => void
   onPort: (p: DockerPort) => Promise<void>
 }) {
+  const t = useT()
   const openDialog = useApp((s) => s.openDialog)
   const tone = stateTone(c)
   const running = c.state === 'running'
@@ -362,7 +362,7 @@ function ContainerRow({
         <div className="text-[11.5px] text-dim truncate">
           {c.shortId}
           {c.service && ` · ${c.service}`}
-          {typeof c.restarts === 'number' && c.restarts > 0 && <span className={c.restarts > 3 ? 'text-danger' : ''}> · рестартів {c.restarts}</span>}
+          {typeof c.restarts === 'number' && c.restarts > 0 && <span className={c.restarts > 3 ? 'text-danger' : ''}> · {t.docker.restarts(c.restarts)}</span>}
         </div>
       </div>
       <div className="min-w-0 text-[12px] text-muted truncate" title={c.image}>
@@ -378,14 +378,14 @@ function ContainerRow({
               key={i}
               type="button"
               className="inline-flex items-center gap-1 h-[20px] px-1.5 rounded text-[11px] font-mono bg-accent-soft text-accent hover:bg-accent hover:text-accent-fg transition-colors"
-              title={`Відкрити http://localhost → ${p.hostIp ?? ''}:${p.hostPort} через тунель`}
+              title={t.docker.openPortTitle(`${p.hostIp ?? ''}:${p.hostPort}`)}
               onClick={() => void onPort(p)}
             >
               <ExternalLink size={10} /> {p.hostPort}→{p.containerPort}
               {p.proto !== 'tcp' && `/${p.proto}`}
             </button>
           ) : (
-            <span key={i} className="inline-flex items-center h-[20px] px-1.5 rounded text-[11px] font-mono bg-surface-3 text-dim" title="Порт не опубліковано">
+            <span key={i} className="inline-flex items-center h-[20px] px-1.5 rounded text-[11px] font-mono bg-surface-3 text-dim" title={t.docker.portNotPublished}>
               {p.containerPort}/{p.proto}
             </span>
           )
@@ -403,36 +403,36 @@ function ContainerRow({
       </div>
       <div className="flex items-center gap-0.5">
         {running ? (
-          <IconButton title="Зупинити" size={26} onClick={() => void onAct(c, 'stop')}>
+          <IconButton title={t.docker.stop} size={26} onClick={() => void onAct(c, 'stop')}>
             <Square size={13} />
           </IconButton>
         ) : paused ? (
-          <IconButton title="Відновити" size={26} onClick={() => void onAct(c, 'unpause')}>
+          <IconButton title={t.docker.unpause} size={26} onClick={() => void onAct(c, 'unpause')}>
             <Play size={13} />
           </IconButton>
         ) : (
-          <IconButton title="Запустити" size={26} onClick={() => void onAct(c, 'start')}>
+          <IconButton title={t.docker.start} size={26} onClick={() => void onAct(c, 'start')}>
             <Play size={13} />
           </IconButton>
         )}
-        <IconButton title="Перезапустити" size={26} onClick={() => void onAct(c, 'restart')}>
+        <IconButton title={t.docker.restart} size={26} onClick={() => void onAct(c, 'restart')}>
           <RotateCcw size={13} />
         </IconButton>
         {running && (
-          <IconButton title="Пауза" size={26} onClick={() => void onAct(c, 'pause')}>
+          <IconButton title={t.docker.pause} size={26} onClick={() => void onAct(c, 'pause')}>
             <Pause size={13} />
           </IconButton>
         )}
-        <IconButton title="Логи наживо" size={26} onClick={() => void ops.dockerLogs(sid, c)}>
+        <IconButton title={t.docker.followLogs} size={26} onClick={() => void ops.dockerLogs(sid, c)}>
           <ScrollText size={13} />
         </IconButton>
-        <IconButton title="Shell у контейнері" size={26} disabled={!running} onClick={() => void ops.dockerShell(sid, c)}>
+        <IconButton title={t.docker.shell} size={26} disabled={!running} onClick={() => void ops.dockerShell(sid, c)}>
           <Terminal size={13} />
         </IconButton>
-        <IconButton title="Деталі (inspect)" size={26} onClick={() => openDialog({ kind: 'dockerInspect', sessionId: sid, container: c })}>
+        <IconButton title={t.docker.details} size={26} onClick={() => openDialog({ kind: 'dockerInspect', sessionId: sid, container: c })}>
           <Info size={13} />
         </IconButton>
-        <IconButton title="Видалити контейнер" size={26} danger onClick={() => onRemove(c)}>
+        <IconButton title={t.docker.removeContainer} size={26} danger onClick={() => onRemove(c)}>
           <Trash2 size={13} />
         </IconButton>
       </div>
@@ -441,6 +441,7 @@ function ContainerRow({
 }
 
 function ImagesTab({ sid, images, filter, reload }: { sid: string; images: DockerImage[]; df: DockerDiskUsage[]; filter: string; reload: () => Promise<void> }) {
+  const t = useT()
   const openDialog = useApp((s) => s.openDialog)
   const pushToast = useApp((s) => s.pushToast)
   const f = filter.trim().toLowerCase()
@@ -458,8 +459,8 @@ function ImagesTab({ sid, images, filter, reload }: { sid: string; images: Docke
   return (
     <div>
       <div className="flex items-center gap-2 px-3 h-9 bg-surface-2 border-b border-border/60 text-[12px]">
-        <span className="text-dim">{countLabel(images.length, 'образ', 'образи', 'образів')}</span>
-        {dangling > 0 && <Badge tone="warning">{dangling} без тегу</Badge>}
+        <span className="text-dim">{t.docker.images(images.length)}</span>
+        {dangling > 0 && <Badge tone="warning">{t.docker.danglingCount(dangling)}</Badge>}
         <span className="flex-1" />
         <Button
           size="sm"
@@ -469,14 +470,14 @@ function ImagesTab({ sid, images, filter, reload }: { sid: string; images: Docke
           onClick={() =>
             openDialog({
               kind: 'confirm',
-              title: 'Прибрати образи без тегу?',
-              message: `Буде видалено ${countLabel(dangling, 'образ', 'образи', 'образів')} без тегу, які не використовуються контейнерами.`,
-              okLabel: 'Прибрати',
+              title: t.docker.pruneImagesTitle,
+              message: t.docker.pruneImagesMessage(dangling),
+              okLabel: t.docker.prune,
               onConfirm: () => run('image prune', () => api.docker.prune(sid, 'images'))
             })
           }
         >
-          Прибрати без тегу
+          {t.docker.pruneDangling}
         </Button>
       </div>
       {list.map((i) => (
@@ -488,26 +489,26 @@ function ImagesTab({ sid, images, filter, reload }: { sid: string; images: Docke
             <div className="text-[11.5px] text-dim">{i.id.replace(/^sha256:/, '').slice(0, 12)}</div>
           </div>
           <div className="text-[12px] text-muted tabular-nums">{i.size}</div>
-          <div>{i.inUse ? <Badge tone="success">використовується</Badge> : i.dangling ? <Badge tone="warning">без тегу</Badge> : <Badge tone="neutral">не використовується</Badge>}</div>
+          <div>{i.inUse ? <Badge tone="success">{t.docker.inUse}</Badge> : i.dangling ? <Badge tone="warning">{t.docker.dangling}</Badge> : <Badge tone="neutral">{t.docker.unused}</Badge>}</div>
           <div className="text-[12px] text-dim truncate">{i.created}</div>
           <div className="flex items-center gap-0.5">
             {!i.dangling && (
-              <IconButton title="Оновити образ (pull)" size={26} onClick={() => openDialog({ kind: 'command', sessionId: sid, title: `pull ${i.repository}:${i.tag}`, cmd: `docker pull ${i.repository}:${i.tag}` })}>
+              <IconButton title={t.docker.pullImage} size={26} onClick={() => openDialog({ kind: 'command', sessionId: sid, title: `pull ${i.repository}:${i.tag}`, cmd: `docker pull ${i.repository}:${i.tag}` })}>
                 <Download size={13} />
               </IconButton>
             )}
             <IconButton
-              title={i.inUse ? 'Образ використовується контейнером' : 'Видалити образ'}
+              title={i.inUse ? t.docker.imageInUse : t.docker.removeImage}
               size={26}
               danger
               disabled={i.inUse}
               onClick={() =>
                 openDialog({
                   kind: 'confirm',
-                  title: `Видалити образ ${i.dangling ? i.id.slice(7, 19) : `${i.repository}:${i.tag}`}?`,
-                  message: `Звільниться близько ${i.size}.`,
+                  title: t.docker.removeImageTitle(i.dangling ? i.id.slice(7, 19) : `${i.repository}:${i.tag}`),
+                  message: t.docker.removeImageMessage(i.size),
                   danger: true,
-                  okLabel: 'Видалити',
+                  okLabel: t.docker.remove,
                   onConfirm: () => run('rmi', () => api.docker.imageAction(sid, i.id, 'rm'))
                 })
               }
@@ -517,12 +518,13 @@ function ImagesTab({ sid, images, filter, reload }: { sid: string; images: Docke
           </div>
         </div>
       ))}
-      {!list.length && <EmptyState icon={<Layers size={30} />} title="Образів немає" />}
+      {!list.length && <EmptyState icon={<Layers size={30} />} title={t.docker.noImages} />}
     </div>
   )
 }
 
 function VolumesTab({ sid, volumes, filter, reload }: { sid: string; volumes: DockerVolume[]; df: DockerDiskUsage[]; filter: string; reload: () => Promise<void> }) {
+  const t = useT()
   const openDialog = useApp((s) => s.openDialog)
   const pushToast = useApp((s) => s.pushToast)
   const f = filter.trim().toLowerCase()
@@ -540,8 +542,8 @@ function VolumesTab({ sid, volumes, filter, reload }: { sid: string; volumes: Do
   return (
     <div>
       <div className="flex items-center gap-2 px-3 h-9 bg-surface-2 border-b border-border/60 text-[12px]">
-        <span className="text-dim">{countLabel(volumes.length, 'том', 'томи', 'томів')}</span>
-        {unused > 0 && <Badge tone="warning">{unused} не використовується</Badge>}
+        <span className="text-dim">{t.docker.volumes(volumes.length)}</span>
+        {unused > 0 && <Badge tone="warning">{t.docker.unusedCount(unused)}</Badge>}
         <span className="flex-1" />
         <Button
           size="sm"
@@ -551,15 +553,15 @@ function VolumesTab({ sid, volumes, filter, reload }: { sid: string; volumes: Do
           onClick={() =>
             openDialog({
               kind: 'confirm',
-              title: 'Прибрати невикористані томи?',
-              message: `Буде безповоротно видалено ${countLabel(unused, 'том', 'томи', 'томів')} разом із даними. Переконайтесь, що вони справді не потрібні.`,
+              title: t.docker.pruneVolumesTitle,
+              message: t.docker.pruneVolumesMessage(unused),
               danger: true,
-              okLabel: 'Прибрати',
+              okLabel: t.docker.prune,
               onConfirm: () => run('volume prune', () => api.docker.prune(sid, 'volumes'))
             })
           }
         >
-          Прибрати невикористані
+          {t.docker.pruneUnused}
         </Button>
       </div>
       {list.map((v) => (
@@ -571,20 +573,20 @@ function VolumesTab({ sid, volumes, filter, reload }: { sid: string; volumes: Do
           <div className="text-[11.5px] text-dim font-mono truncate" title={v.mountpoint}>
             {v.mountpoint}
           </div>
-          <div>{v.inUse ? <Badge tone="success">використовується</Badge> : <Badge tone="neutral">не використовується</Badge>}</div>
+          <div>{v.inUse ? <Badge tone="success">{t.docker.inUse}</Badge> : <Badge tone="neutral">{t.docker.unused}</Badge>}</div>
           <div className="flex items-center gap-0.5">
             <IconButton
-              title={v.inUse ? 'Том використовується контейнером' : 'Видалити том'}
+              title={v.inUse ? t.docker.volumeInUse : t.docker.removeVolume}
               size={26}
               danger
               disabled={v.inUse}
               onClick={() =>
                 openDialog({
                   kind: 'confirm',
-                  title: `Видалити том ${v.name}?`,
-                  message: 'Усі дані тому буде безповоротно втрачено.',
+                  title: t.docker.removeVolumeTitle(v.name),
+                  message: t.docker.removeVolumeMessage,
                   danger: true,
-                  okLabel: 'Видалити',
+                  okLabel: t.docker.remove,
                   onConfirm: () => run('volume rm', () => api.docker.volumeAction(sid, v.name, 'rm'))
                 })
               }
@@ -594,7 +596,7 @@ function VolumesTab({ sid, volumes, filter, reload }: { sid: string; volumes: Do
           </div>
         </div>
       ))}
-      {!list.length && <EmptyState icon={<HardDrive size={30} />} title="Томів немає" />}
+      {!list.length && <EmptyState icon={<HardDrive size={30} />} title={t.docker.noVolumes} />}
     </div>
   )
 }

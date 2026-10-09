@@ -7,6 +7,7 @@ import { prompt } from '../prompter'
 import { toast } from '../broadcast'
 import { profiles } from '../store/profiles'
 import { settings } from '../store/settings'
+import { tr } from '../i18n'
 import { fingerprint, hostKeys, parseKeyType } from './hostKeys'
 import { resolveSshHost } from './sshConfig'
 import { openSftpOverExec } from './sftpExec'
@@ -60,10 +61,10 @@ const SFTP_SERVER_CANDIDATES = [
   '/run/current-system/sw/libexec/openssh/sftp-server'
 ]
 
-/** Шлях до sftp-server: спершу з sshd_config (Subsystem sftp), потім типові місця */
+/** Path to sftp-server: first from sshd_config (Subsystem sftp), then the usual locations */
 const FIND_SFTP_SERVER = `p=$(cat /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | awk 'tolower($1)=="subsystem" && tolower($2)=="sftp" {print $3; exit}'); if [ -n "$p" ] && [ "$p" != "internal-sftp" ] && [ -x "$p" ]; then echo "$p"; else for c in ${SFTP_SERVER_CANDIDATES.join(' ')}; do [ -x "$c" ] && echo "$c" && break; done; fi`
 
-/** Розбір ProxyJump: [user@]host[:port], кілька через кому */
+/** Parse ProxyJump: [user@]host[:port], several separated by commas */
 export function parseProxyJump(spec: string): { user?: string; host: string; port?: number }[] {
   return spec
     .split(',')
@@ -82,7 +83,7 @@ export function parseProxyJump(spec: string): { user?: string; host: string; por
     })
 }
 
-/** Одне SSH-з'єднання: клієнт, SFTP-канал, exec та shell, за потреби через ProxyJump і з sudo */
+/** One SSH connection: client, SFTP channel, exec and shell, via ProxyJump and with sudo when needed */
 export class Session extends EventEmitter {
   info: SessionInfo
   client?: Client
@@ -93,7 +94,7 @@ export class Session extends EventEmitter {
   private reconnectAttempts = 0
   private lastPassword?: string
   private reconnectTimer?: NodeJS.Timeout
-  /** passphrase на час сесії, щоб не питати двічі для одного ключа */
+  /** Passphrases kept for the session so the same key is not asked for twice */
   private passphrases = new Map<string, string>()
   private sudoState?: SudoState
   private pendingSudo?: SudoState
@@ -119,11 +120,11 @@ export class Session extends EventEmitter {
     }
   }
 
-  /** Активний SFTP-канал: з правами root у sudo-режимі, інакше звичайний */
+  /** Active SFTP channel: the root one in sudo mode, the regular one otherwise */
   get sftp(): SFTPWrapper {
-    if (!this.ready) throw new Error('Сесію не підключено')
+    if (!this.ready) throw new Error(tr().main.session.notConnected)
     if (this.sudoState?.sftp) return this.sudoState.sftp
-    if (!this._sftp) throw new Error('Сесію не підключено')
+    if (!this._sftp) throw new Error(tr().main.session.notConnected)
     return this._sftp
   }
 
@@ -131,7 +132,7 @@ export class Session extends EventEmitter {
     return this.ready && !!this._sftp
   }
 
-  /** sudo увімкнено для команд; файловий канал root може бути відсутнім, якщо немає sftp-server */
+  /** sudo is on for commands; the root file channel may be missing if there is no sftp-server */
   get sudoActive(): boolean {
     return !!this.sudoState
   }
@@ -198,7 +199,7 @@ export class Session extends EventEmitter {
         const saved = this.pendingSudo
         this.pendingSudo = undefined
         this.enableSudo(saved.password).catch(() => {
-          /* користувач побачить, що sudo вимкнено */
+          /* the user will see that sudo is off */
         })
       }
     } catch (e) {
@@ -230,14 +231,14 @@ export class Session extends EventEmitter {
     const parsed = utils.parseKey(privateKey)
     if (!(parsed instanceof Error)) return { privateKey }
     if (!/passphrase|encrypted|decrypt/i.test(parsed.message)) {
-      throw new Error(`Не вдалося прочитати ключ ${keyPath}: ${parsed.message}`)
+      throw new Error(tr().main.ssh.keyReadFailed(keyPath, parsed.message))
     }
     const cached = this.passphrases.get(keyPath)
     if (cached && !(utils.parseKey(privateKey, cached) instanceof Error)) return { privateKey, passphrase: cached }
     const a = await prompt<PassphraseAnswer>('passphrase', { keyPath })
-    if (a.passphrase == null) throw new Error('Підключення скасовано')
+    if (a.passphrase == null) throw new Error(tr().main.ssh.connectCancelled)
     const again = utils.parseKey(privateKey, a.passphrase)
-    if (again instanceof Error) throw new Error(`Не вдалося розшифрувати ключ: ${again.message}`)
+    if (again instanceof Error) throw new Error(tr().main.ssh.keyDecryptFailed(again.message))
     this.passphrases.set(keyPath, a.passphrase)
     return { privateKey, passphrase: a.passphrase }
   }
@@ -251,7 +252,7 @@ export class Session extends EventEmitter {
   ): Promise<{ cfg: Partial<ConnectConfig>; password?: string }> {
     const cfg: Partial<ConnectConfig> = {}
     if (auth === 'key') {
-      if (!keyPath) throw new Error('Не вказано файл приватного ключа')
+      if (!keyPath) throw new Error(tr().main.ssh.noKeyFile)
       const k = await this.loadKey(keyPath)
       cfg.privateKey = k.privateKey
       if (k.passphrase) cfg.passphrase = k.passphrase
@@ -268,7 +269,7 @@ export class Session extends EventEmitter {
         username: ep.username,
         canSave: isTarget && !!this.profile.id
       })
-      if (a.password == null) throw new Error('Підключення скасовано')
+      if (a.password == null) throw new Error(tr().main.ssh.connectCancelled)
       pw = a.password
       if (isTarget && a.save && this.profile.id) {
         profiles.setPassword(this.profile.id, pw)
@@ -279,10 +280,10 @@ export class Session extends EventEmitter {
     return { cfg, password: pw }
   }
 
-  /** Ланцюжок проміжних хостів; повертає сокет до цільового сервера */
+  /** Chain of jump hosts; returns a socket to the target server */
   private async openJumpChain(spec: string, password: string | undefined): Promise<{ sock: Duplex; password?: string }> {
     const raw = parseProxyJump(spec)
-    if (!raw.length) throw new Error('Порожній ProxyJump')
+    if (!raw.length) throw new Error(tr().main.ssh.emptyProxyJump)
     const hops: Hop[] = []
     for (const r of raw) {
       const cfgHost = await resolveSshHost(r.host)
@@ -310,11 +311,11 @@ export class Session extends EventEmitter {
         const next = i + 1 < hops.length ? hops[i + 1] : { host: this.profile.host, port: this.profile.port }
         sock = await new Promise<Duplex>((res, rej) =>
           client.forwardOut('127.0.0.1', 0, next.host, next.port, (err, stream) =>
-            err ? rej(new Error(`тунель до ${next.host}:${next.port} не вдався: ${err.message}`)) : res(stream)
+            err ? rej(new Error(tr().main.ssh.jumpTunnelFailed(next.host, next.port, err.message))) : res(stream)
           )
         )
       } catch (e) {
-        throw new Error(`Проміжний хост ${hop.label}: ${humanizeError(e)}`)
+        throw new Error(tr().main.ssh.jumpHostError(hop.label, humanizeError(e)))
       }
     }
     return { sock: sock!, password: pw }
@@ -360,7 +361,7 @@ export class Session extends EventEmitter {
       client.on('close', () => {
         if (!settled) {
           settled = true
-          reject(new Error('З’єднання закрито сервером'))
+          reject(new Error(tr().main.session.closedByServer))
           return
         }
         onClose?.()
@@ -405,17 +406,17 @@ export class Session extends EventEmitter {
     if (wasReady && this.reconnectAttempts < MAX_RECONNECT) {
       this.reconnectAttempts++
       const delay = 1500 * this.reconnectAttempts
-      this.setStatus('reconnecting', `З’єднання втрачено, спроба ${this.reconnectAttempts} з ${MAX_RECONNECT}`)
+      this.setStatus('reconnecting', tr().main.session.reconnecting(this.reconnectAttempts, MAX_RECONNECT))
       this.reconnectTimer = setTimeout(() => {
         this.connect().catch(() => {
           if (this.reconnectAttempts >= MAX_RECONNECT) {
-            this.setStatus('disconnected', 'Не вдалося відновити з’єднання')
+            this.setStatus('disconnected', tr().main.session.reconnectFailed)
           }
         })
       }, delay)
       return
     }
-    this.setStatus('disconnected', 'З’єднання втрачено')
+    this.setStatus('disconnected', tr().main.session.connectionLost)
   }
 
   private endJumpClients(): void {
@@ -460,17 +461,17 @@ export class Session extends EventEmitter {
 
   // ---------------------------------------------------------------- sudo
 
-  /** Увімкнути sudo-режим: окремий SFTP-канал із правами root та обгортка exec */
+  /** Turn on sudo mode: a separate SFTP channel with root rights and an exec wrapper */
   async enableSudo(password?: string): Promise<void> {
-    if (!this.ready || !this.client) throw new Error('Сесію не підключено')
+    if (!this.ready || !this.client) throw new Error(tr().main.session.notConnected)
     if (this.sudoState) return
-    if (!this.info.hasShell) throw new Error('sudo-режим потребує доступу до shell на сервері')
+    if (!this.info.hasShell) throw new Error(tr().main.sudo.needsShell)
 
     const probe = await this.execRaw('sudo -n true 2>&1', 15_000)
     const probeText = (probe.stdout + probe.stderr).trim()
-    if (/not found|No such file/i.test(probeText) && /sudo/i.test(probeText)) throw new Error('На сервері немає sudo')
-    if (/not in the sudoers|may not run sudo|not allowed/i.test(probeText)) throw new Error(`Користувачу ${this.profile.username} не дозволено sudo`)
-    if (/requiretty|must have a tty/i.test(probeText)) throw new Error('sudoers вимагає tty (requiretty), sudo-режим недоступний')
+    if (/not found|No such file/i.test(probeText) && /sudo/i.test(probeText)) throw new Error(tr().main.sudo.notInstalled)
+    if (/not in the sudoers|may not run sudo|not allowed/i.test(probeText)) throw new Error(tr().main.sudo.notAllowed(this.profile.username))
+    if (/requiretty|must have a tty/i.test(probeText)) throw new Error(tr().main.sudo.requiresTty)
 
     let mode: SudoState['mode'] = probe.code === 0 ? 'nopasswd' : 'password'
     let pw = password
@@ -481,17 +482,18 @@ export class Session extends EventEmitter {
             host: this.profile.host,
             username: this.profile.username,
             canSave: false,
-            reason: attempt ? 'Невірний пароль sudo, спробуйте ще раз' : `Пароль sudo для ${this.profile.username}@${this.profile.host}`
+            reason: attempt ? tr().main.sudo.wrongPasswordRetry : tr().main.sudo.passwordPrompt(this.profile.username, this.profile.host),
+            retry: attempt > 0
           })
-          if (a.password == null) throw new Error('sudo скасовано')
+          if (a.password == null) throw new Error(tr().main.sudo.cancelled)
           pw = a.password
         }
         const v = await this.execRaw("sudo -S -v -p '' 2>&1", 20_000, pw + '\n')
         if (v.code === 0) break
         const text = (v.stdout + v.stderr).trim()
-        if (/not in the sudoers|may not run sudo/i.test(text)) throw new Error(`Користувачу ${this.profile.username} не дозволено sudo`)
+        if (/not in the sudoers|may not run sudo/i.test(text)) throw new Error(tr().main.sudo.notAllowed(this.profile.username))
         pw = undefined
-        if (attempt === 2) throw new Error('Невірний пароль sudo')
+        if (attempt === 2) throw new Error(tr().main.sudo.wrongPassword)
       }
     }
 
@@ -499,13 +501,13 @@ export class Session extends EventEmitter {
     const server = found.stdout.trim().split('\n')[0]?.trim()
 
     if (!server) {
-      // Команди через sudo працюватимуть, але файловий канал root відкрити нема чим
+      // Commands via sudo will work, but there is nothing to open the root file channel with
       this.sudoState = { mode, password: pw, server: '' }
       this.patchInfo({ sudo: true, sudoFiles: false })
       toast(
         'warning',
-        'sudo увімкнено лише для команд',
-        'На сервері не знайдено sftp-server, тому файлові операції виконуються від вашого користувача. Docker, термінал і команди працюють від root.'
+        tr().main.sudo.commandsOnlyTitle,
+        tr().main.sudo.commandsOnlyMessage
       )
       return
     }
@@ -515,14 +517,14 @@ export class Session extends EventEmitter {
       sftp = await openSftpOverExec(this.client, `sudo -n ${server}`)
     } else {
       try {
-        // Після sudo -v квиток може діяти і для інших каналів цієї ж сесії
+        // After sudo -v the ticket may also be valid for other channels of the same session
         sftp = await openSftpOverExec(this.client, `sudo -n ${server}`)
       } catch {
         sftp = await openSftpOverExec(this.client, `sudo -S -p '' ${server}`, Buffer.from(`${pw}\n`, 'utf8'))
       }
     }
     sftp.on('error', () => {
-      /* обробляється через close */
+      /* handled via close */
     })
     sftp.on('close', () => {
       if (this.sudoState?.sftp === sftp) {
@@ -555,11 +557,11 @@ export class Session extends EventEmitter {
 
   // ---------------------------------------------------------------- exec
 
-  /** Низькорівневий exec без sudo-обгортки */
+  /** Low-level exec without the sudo wrapper */
   private execRaw(cmd: string, timeoutMs = 60_000, stdin?: string): Promise<ExecResult> {
     return new Promise((resolve, reject) => {
       const client = this.client
-      if (!client || !this.ready) return reject(new Error('Сесію не підключено'))
+      if (!client || !this.ready) return reject(new Error(tr().main.session.notConnected))
       if (process.env.CYBERCAT_DEBUG_EXEC) console.log(`[exec ${this.id.slice(0, 8)}] ${cmd}`)
       client.exec(cmd, (err, stream) => {
         if (err) return reject(err)
@@ -567,7 +569,7 @@ export class Session extends EventEmitter {
         let stderr = ''
         const timer = setTimeout(() => {
           stream.close()
-          reject(new Error(`Команда не завершилась за ${Math.round(timeoutMs / 1000)} с`))
+          reject(new Error(tr().main.exec.timeout(Math.round(timeoutMs / 1000))))
         }, timeoutMs)
         stream.on('data', (d: Buffer) => (stdout += d.toString('utf8')))
         stream.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')))
@@ -584,19 +586,19 @@ export class Session extends EventEmitter {
     })
   }
 
-  /** Виконати команду (у sudo-режимі з правами root); повертає stdout/stderr/код */
+  /** Run a command (as root in sudo mode); returns stdout/stderr/code */
   exec(cmd: string, timeoutMs = 60_000): Promise<ExecResult> {
     const w = this.wrapSudo(cmd)
     return this.execRaw(w.cmd, timeoutMs, w.stdin)
   }
 
-  /** Запустити команду і повернути потік для довгих процесів (tail -F тощо) */
+  /** Start a command and return its stream, for long-running processes (tail -F etc.) */
   execStream(cmd: string, opts: ExecOptions = {}): Promise<ClientChannel> {
     return new Promise((resolve, reject) => {
       const client = this.client
-      if (!client || !this.ready) return reject(new Error('Сесію не підключено'))
+      if (!client || !this.ready) return reject(new Error(tr().main.session.notConnected))
       const w = this.wrapSudo(cmd)
-      // У sudo-режимі pty вимикаємо, інакше пароль відлунюється у вивід
+      // pty is off in sudo mode, otherwise the password is echoed to the output
       const options: ExecOptions = w.stdin ? { ...opts, pty: false } : opts
       client.exec(w.cmd, options, (err, stream) => {
         if (err) return reject(err)
@@ -609,7 +611,7 @@ export class Session extends EventEmitter {
   shell(cols: number, rows: number): Promise<ClientChannel> {
     return new Promise((resolve, reject) => {
       const client = this.client
-      if (!client || !this.ready) return reject(new Error('Сесію не підключено'))
+      if (!client || !this.ready) return reject(new Error(tr().main.session.notConnected))
       client.shell({ term: 'xterm-256color', cols, rows }, (err, stream) => {
         if (err) return reject(err)
         resolve(stream)
@@ -629,16 +631,16 @@ function resolveAgent(): string {
 export function humanizeError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
   if (/All configured authentication methods failed/i.test(msg)) {
-    return 'Автентифікація не вдалася: невірний пароль, ключ або ім’я користувача'
+    return tr().main.ssh.authFailed
   }
-  if (/ECONNREFUSED/i.test(msg)) return 'Сервер відхилив з’єднання. Перевірте адресу та порт'
-  if (/ENOTFOUND|EAI_AGAIN/i.test(msg)) return 'Не вдалося знайти хост. Перевірте адресу'
+  if (/ECONNREFUSED/i.test(msg)) return tr().main.ssh.connectionRefused
+  if (/ENOTFOUND|EAI_AGAIN/i.test(msg)) return tr().main.ssh.hostNotFound
   if (/ETIMEDOUT|Timed out while waiting for handshake/i.test(msg)) {
-    return 'Час очікування вичерпано. Сервер не відповідає'
+    return tr().main.ssh.timedOut
   }
-  if (/Host key verification|hostVerifier|host key/i.test(msg)) return 'Ключ сервера відхилено'
+  if (/Host key verification|hostVerifier|host key/i.test(msg)) return tr().main.ssh.hostKeyRejected
   if (/agent/i.test(msg) && /ENOENT|ECONNREFUSED|EPIPE/i.test(msg)) {
-    return 'SSH-агент недоступний. Запустіть ssh-agent або Pageant'
+    return tr().main.ssh.agentUnavailable
   }
   return msg
 }

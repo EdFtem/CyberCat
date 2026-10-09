@@ -7,11 +7,11 @@ interface ProtocolLike {
 }
 
 /**
- * Відкрити SFTP не через підсистему "sftp", а запуском довільної команди,
- * наприклад `sudo /usr/lib/openssh/sftp-server`. У ssh2 немає публічного API
- * для цього, тому на час одного виклику підміняємо запит subsystem на exec.
- * prewrite надсилається у stdin команди до пакета SFTP INIT: так sudo -S
- * зчитує пароль (побайтно, до переводу рядка), а решта потоку дістається sftp-server.
+ * Open SFTP by running an arbitrary command instead of the "sftp" subsystem,
+ * e.g. `sudo /usr/lib/openssh/sftp-server`. ssh2 has no public API for this,
+ * so for the duration of one call the subsystem request is swapped for exec.
+ * prewrite is sent to the command's stdin before the SFTP INIT packet: this way
+ * sudo -S reads the password (byte by byte, up to the newline) and the rest of the stream goes to sftp-server.
  */
 export function openSftpOverExec(client: Client, cmd: string, prewrite?: Buffer): Promise<SFTPWrapper> {
   const proto = (client as unknown as { _protocol: ProtocolLike })._protocol

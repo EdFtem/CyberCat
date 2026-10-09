@@ -1,7 +1,7 @@
 import { useApp, paneTarget, otherPane, type PaneId, type PaneState } from '@/store/app'
 import { pathLib } from './paths'
 import { looksBinary } from './fileIcons'
-import { countLabel } from './format'
+import { tr } from './i18n'
 import type { Bookmark, DockerContainer, FileEntry, Toast } from '@shared/types'
 
 const api = window.api
@@ -15,7 +15,7 @@ export function toast(kind: Toast['kind'], title: string, message?: string): voi
   S().pushToast({ kind, title, message })
 }
 
-/** Екранування для POSIX-оболонки */
+/** Quoting for a POSIX shell */
 export function shellQuote(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'"
 }
@@ -25,7 +25,7 @@ export interface CustomCommand {
   cmd: string
 }
 
-/** Рядки виду "Назва = команда", # коментарі */
+/** Lines of the form "Name = command", # comments */
 export function parseCustomCommands(text: string): CustomCommand[] {
   const out: CustomCommand[] = []
   for (const raw of (text || '').split(/\r?\n/)) {
@@ -53,10 +53,11 @@ export function selectedEntries(pane: PaneState): FileEntry[] {
 }
 
 function validateName(v: string): string | null {
-  const t = v.trim()
-  if (!t) return 'Введіть назву'
-  if (t === '.' || t === '..') return 'Неприпустима назва'
-  if (/[/\\]/.test(t)) return 'Назва не може містити / або \\'
+  const name = v.trim()
+  const m = tr().ops
+  if (!name) return m.nameRequired
+  if (name === '.' || name === '..') return m.nameInvalid
+  if (/[/\\]/.test(name)) return m.nameNoSlashes
   return null
 }
 
@@ -69,14 +70,15 @@ export const ops = {
     const target = paneTarget(sid, pane)
     if (looksBinary(entry.name)) {
       if (pane === 'local') {
-        void api.app.openPath(entry.path).catch((e) => toast('error', 'Не вдалося відкрити', errMsg(e)))
+        void api.app.openPath(entry.path).catch((e) => toast('error', tr().ops.openFailed, errMsg(e)))
         return
       }
+      const t = tr()
       S().openDialog({
         kind: 'confirm',
-        title: 'Схоже, це не текстовий файл',
-        message: `${entry.name} навряд чи є текстом. Відкрити у редакторі все одно?`,
-        okLabel: 'Відкрити',
+        title: t.ops.notTextTitle,
+        message: t.ops.notTextMessage(entry.name),
+        okLabel: t.common.open,
         onConfirm: () => S().openDoc(sid, target, entry.path)
       })
       return
@@ -92,22 +94,23 @@ export const ops = {
   editExternal(sid: string, pane: PaneId, entry: FileEntry): void {
     if (entry.isDir) return
     if (pane === 'local') {
-      void api.app.openPath(entry.path).catch((e) => toast('error', 'Не вдалося відкрити', errMsg(e)))
+      void api.app.openPath(entry.path).catch((e) => toast('error', tr().ops.openFailed, errMsg(e)))
       return
     }
-    api.extedit.open(sid, entry.path).catch((e) => toast('error', 'Зовнішній редактор', errMsg(e)))
+    api.extedit.open(sid, entry.path).catch((e) => toast('error', tr().ops.externalEditor, errMsg(e)))
   },
 
   mkdir(sid: string, pane: PaneId): void {
     const target = paneTarget(sid, pane)
     const cur = S().ui[sid]?.panes[pane]
     if (!cur) return
+    const t = tr()
     S().openDialog({
       kind: 'input',
-      title: 'Нова тека',
-      label: 'Назва теки',
-      placeholder: 'нова-тека',
-      okLabel: 'Створити',
+      title: t.ops.newFolder,
+      label: t.ops.folderName,
+      placeholder: t.ops.folderPlaceholder,
+      okLabel: t.common.create,
       validate: validateName,
       onSubmit: async (name) => {
         const full = pathLib(target).join(cur.path, name.trim())
@@ -116,7 +119,7 @@ export const ops = {
           await S().refresh(sid, pane)
           S().setPane(sid, pane, { selected: [full], cursor: full })
         } catch (e) {
-          toast('error', 'Не вдалося створити теку', errMsg(e))
+          toast('error', tr().ops.createFolderFailed, errMsg(e))
         }
       }
     })
@@ -126,12 +129,13 @@ export const ops = {
     const target = paneTarget(sid, pane)
     const cur = S().ui[sid]?.panes[pane]
     if (!cur) return
+    const t = tr()
     S().openDialog({
       kind: 'input',
-      title: 'Новий файл',
-      label: 'Назва файлу',
+      title: t.ops.newFile,
+      label: t.ops.fileName,
       placeholder: 'notes.txt',
-      okLabel: 'Створити',
+      okLabel: t.common.create,
       validate: validateName,
       onSubmit: async (name) => {
         const full = pathLib(target).join(cur.path, name.trim())
@@ -141,7 +145,7 @@ export const ops = {
           S().setPane(sid, pane, { selected: [full], cursor: full })
           void S().openDoc(sid, target, full)
         } catch (e) {
-          toast('error', 'Не вдалося створити файл', errMsg(e))
+          toast('error', tr().ops.createFileFailed, errMsg(e))
         }
       }
     })
@@ -152,7 +156,7 @@ export const ops = {
     const name = newName.trim()
     const err = validateName(name)
     if (err) {
-      toast('error', 'Перейменування', err)
+      toast('error', tr().ops.renameTitle, err)
       return false
     }
     if (name === entry.name) return true
@@ -164,7 +168,7 @@ export const ops = {
       S().setPane(sid, pane, { selected: [to], cursor: to })
       return true
     } catch (e) {
-      toast('error', 'Не вдалося перейменувати', errMsg(e))
+      toast('error', tr().ops.renameFailed, errMsg(e))
       return false
     }
   },
@@ -175,13 +179,14 @@ export const ops = {
     const cur = S().ui[sid]?.panes[pane]
     if (!cur) return
     const lib = pathLib(target)
+    const t = tr()
     S().openDialog({
       kind: 'input',
-      title: entries.length === 1 ? `Перемістити ${entries[0].name}` : `Перемістити ${countLabel(entries.length, 'елемент', 'елементи', 'елементів')}`,
-      label: 'Тека призначення',
+      title: entries.length === 1 ? t.ops.moveTitle(entries[0].name) : t.ops.moveItemsTitle(entries.length),
+      label: t.ops.destinationFolder,
       initial: cur.path,
       mono: true,
-      okLabel: 'Перемістити',
+      okLabel: t.ops.move,
       onSubmit: async (dest) => {
         const destDir = lib.normalize(dest.trim())
         const errors: string[] = []
@@ -193,8 +198,8 @@ export const ops = {
           }
         }
         await S().refresh(sid, pane)
-        if (errors.length) toast('error', 'Не все вдалося перемістити', errors.join('\n'))
-        else toast('success', 'Переміщено', `${countLabel(entries.length, 'елемент', 'елементи', 'елементів')} у ${destDir}`)
+        if (errors.length) toast('error', tr().ops.moveSomeFailed, errors.join('\n'))
+        else toast('success', tr().ops.moved, tr().ops.movedMessage(entries.length, destDir))
       }
     })
   },
@@ -208,9 +213,9 @@ export const ops = {
           target,
           entries.map((e) => ({ path: e.path, isDir: e.isDir && !e.isSymlink }))
         )
-        toast('success', 'Видалено', countLabel(entries.length, 'елемент', 'елементи', 'елементів'))
+        toast('success', tr().ops.deleted, tr().common.items(entries.length))
       } catch (e) {
-        toast('error', 'Не все вдалося видалити', errMsg(e))
+        toast('error', tr().ops.deleteSomeFailed, errMsg(e))
       }
       await S().refresh(sid, pane)
     }
@@ -219,15 +224,14 @@ export const ops = {
       return
     }
     const hasDirs = entries.some((e) => e.isDir && !e.isSymlink)
+    const t = tr()
     S().openDialog({
       kind: 'confirm',
-      title: entries.length === 1 ? `Видалити ${entries[0].name}?` : `Видалити ${countLabel(entries.length, 'елемент', 'елементи', 'елементів')}?`,
-      message: hasDirs
-        ? 'Теки буде видалено разом з усім вмістом. Цю дію неможливо скасувати.'
-        : 'Цю дію неможливо скасувати.',
-      details: entries.length > 1 ? entries.slice(0, 8).map((e) => e.name).concat(entries.length > 8 ? [`… ще ${entries.length - 8}`] : []) : undefined,
+      title: entries.length === 1 ? t.ops.deleteTitle(entries[0].name) : t.ops.deleteItemsTitle(entries.length),
+      message: hasDirs ? t.ops.deleteWithFolders : t.ops.deleteIrreversible,
+      details: entries.length > 1 ? entries.slice(0, 8).map((e) => e.name).concat(entries.length > 8 ? [t.ops.andMore(entries.length - 8)] : []) : undefined,
       danger: true,
-      okLabel: 'Видалити',
+      okLabel: t.common.delete,
       onConfirm: run
     })
   },
@@ -241,24 +245,24 @@ export const ops = {
     S().openDialog({ kind: 'properties', target: paneTarget(sid, pane), entry })
   },
 
-  /** Копіювання між панелями: з локальної на сервер або навпаки */
+  /** Copy between panes: local to server or the other way round */
   transfer(sid: string, fromPane: PaneId, entries: FileEntry[], destDir?: string): void {
     if (!entries.length) return
     const ui = S().ui[sid]
     if (!ui) return
     const dest = destDir ?? ui.panes[otherPane(fromPane)].path
     if (!dest && fromPane === 'remote') {
-      toast('warning', 'Оберіть локальну теку', 'У локальній панелі відкрито список дисків.')
+      toast('warning', tr().ops.chooseLocalFolder, tr().ops.chooseLocalFolderMessage)
       return
     }
     const direction = fromPane === 'local' ? 'upload' : 'download'
     const sources = entries.filter((e) => !e.isDrive).map((e) => ({ path: e.path, name: e.name, isDir: e.isDir }))
     api.transfer
       .enqueue({ sessionId: sid, direction, sources, destDir: dest })
-      .catch((e) => toast('error', 'Не вдалося почати передачу', errMsg(e)))
+      .catch((e) => toast('error', tr().ops.transferStartFailed, errMsg(e)))
   },
 
-  /** Файли, перетягнуті з Провідника */
+  /** Files dragged in from the system file manager */
   async uploadOsFiles(sid: string, files: File[], destDir: string): Promise<void> {
     const sources: { path: string; name: string; isDir: boolean }[] = []
     for (const f of files) {
@@ -273,19 +277,19 @@ export const ops = {
         const st = await api.fs.stat('local', p)
         sources.push({ path: p, name: st.name, isDir: st.isDir })
       } catch {
-        /* пропускаємо */
+        /* skip */
       }
     }
     if (!sources.length) return
     api.transfer
       .enqueue({ sessionId: sid, direction: 'upload', sources, destDir })
-      .catch((e) => toast('error', 'Не вдалося почати передачу', errMsg(e)))
+      .catch((e) => toast('error', tr().ops.transferStartFailed, errMsg(e)))
   },
 
   copyPath(entries: FileEntry[]): void {
     if (!entries.length) return
     void navigator.clipboard.writeText(entries.map((e) => e.path).join('\n'))
-    toast('info', 'Шлях скопійовано', entries.length === 1 ? entries[0].path : countLabel(entries.length, 'шлях', 'шляхи', 'шляхів'))
+    toast('info', tr().ops.pathCopied, entries.length === 1 ? entries[0].path : tr().ops.pathsCount(entries.length))
   },
 
   openTerminalHere(sid: string, path?: string): void {
@@ -308,7 +312,7 @@ export const ops = {
     void S().openLog(sid, paneTarget(sid, pane), entry.path)
   },
 
-  /** F6: перемістити на іншу панель, джерело видаляється після успішної передачі */
+  /** F6: move to the other pane; each source is deleted after its transfer succeeds */
   moveToOtherPane(sid: string, fromPane: PaneId, entries: FileEntry[]): void {
     const items = entries.filter((e) => !e.isDrive)
     if (!items.length) return
@@ -317,11 +321,12 @@ export const ops = {
     const dest = ui.panes[otherPane(fromPane)].path
     if (!dest) return
     const direction = fromPane === 'local' ? 'upload' : 'download'
+    const t = tr()
     S().openDialog({
       kind: 'confirm',
-      title: `Перемістити ${countLabel(items.length, 'елемент', 'елементи', 'елементів')} ${fromPane === 'local' ? 'на сервер' : 'на комп\u2019ютер'}?`,
-      message: `Призначення: ${dest}. Файли-джерела буде видалено після успішної передачі кожного з них.`,
-      okLabel: 'Перемістити',
+      title: fromPane === 'local' ? t.ops.moveToServerTitle(items.length) : t.ops.moveToComputerTitle(items.length),
+      message: t.ops.moveToOtherMessage(dest),
+      okLabel: t.ops.move,
       onConfirm: () =>
         api.transfer
           .enqueue({
@@ -331,7 +336,7 @@ export const ops = {
             destDir: dest,
             move: true
           })
-          .catch((e) => toast('error', 'Не вдалося почати переміщення', errMsg(e)))
+          .catch((e) => toast('error', tr().ops.moveStartFailed, errMsg(e)))
     })
   },
 
@@ -339,14 +344,15 @@ export const ops = {
     const items = entries.filter((e) => !e.isDrive)
     if (!items.length) return
     S().setClipboard({ sid, pane, entries: items, cut })
-    toast('info', cut ? 'Вирізано' : 'Скопійовано', `${countLabel(items.length, 'елемент', 'елементи', 'елементів')} · Ctrl+V для вставки`)
+    const t = tr()
+    toast('info', cut ? t.ops.cut : t.ops.copied, t.ops.clipboardMessage(items.length))
   },
 
   async paste(sid: string, pane: PaneId): Promise<void> {
     const clip = S().clipboard
     if (!clip) return
     if (clip.sid !== sid) {
-      toast('warning', 'Вставка між різними сесіями поки не підтримується')
+      toast('warning', tr().ops.pasteAcrossSessions)
       return
     }
     const destDir = S().ui[sid]?.panes[pane].path
@@ -361,7 +367,7 @@ export const ops = {
           destDir,
           move: clip.cut
         })
-        .catch((e) => toast('error', 'Не вдалося вставити', errMsg(e)))
+        .catch((e) => toast('error', tr().ops.pasteFailed, errMsg(e)))
     } else {
       const target = paneTarget(sid, pane)
       const lib = pathLib(target)
@@ -387,7 +393,7 @@ export const ops = {
         }
       }
       await S().refresh(sid, pane)
-      if (errors.length) toast('error', 'Не все вдалося вставити', errors.join('\n'))
+      if (errors.length) toast('error', tr().ops.pasteSomeFailed, errors.join('\n'))
     }
     if (clip.cut) S().setClipboard(null)
   },
@@ -424,9 +430,10 @@ export const ops = {
     const existing = all.find((b) => b.target === key && b.path === path)
     const next = existing
       ? all.filter((b) => b !== existing)
-      : [...all, { id: Math.random().toString(36).slice(2), label: pathLib(paneTarget(sid, pane)).basename(path) || path || 'Цей ПК', target: key, path }]
+      : [...all, { id: Math.random().toString(36).slice(2), label: pathLib(paneTarget(sid, pane)).basename(path) || path || tr().pane.thisPc, target: key, path }]
     await S().updateSettings({ bookmarks: next })
-    toast('info', existing ? 'Закладку прибрано' : 'Закладку додано', path || 'Цей ПК')
+    const t = tr()
+    toast('info', existing ? t.ops.bookmarkRemoved : t.ops.bookmarkAdded, path || t.pane.thisPc)
   },
 
   async removeBookmark(id: string): Promise<void> {
@@ -443,7 +450,7 @@ export const ops = {
       const tailId = await api.docker.logs(sid, c.id, 300)
       S().openCommandLog(sid, tailId, `docker logs ${c.name}`)
     } catch (e) {
-      toast('error', 'Не вдалося відкрити логи', errMsg(e))
+      toast('error', tr().ops.dockerLogsFailed, errMsg(e))
     }
   },
 
@@ -458,7 +465,7 @@ export const ops = {
         if (!ui?.terminalOpen) S().toggleTerminal(sid)
       }
     } catch (e) {
-      toast('error', 'Не вдалося відкрити shell у контейнері', errMsg(e))
+      toast('error', tr().ops.dockerShellFailed, errMsg(e))
     }
   },
 

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell, nativeTheme } from 'electron'
 import { join, resolve } from 'path'
 
-// Окрема тека даних для тестів або портативного режиму; має бути встановлена до читання сховищ
+// Separate data folder for tests or portable mode; must be set before any store is read
 if (process.env.CYBERCAT_USER_DATA) app.setPath('userData', resolve(process.env.CYBERCAT_USER_DATA))
 
 import { registerIpc } from './ipc'
@@ -13,6 +13,7 @@ import { tails } from './tail/TailService'
 import { watches } from './sync/WatchService'
 import { tunnels } from './tunnel/TunnelService'
 import { rejectAllPrompts } from './prompter'
+import { tr } from './i18n'
 import { settings } from './store/settings'
 
 const THEME_BG = { dark: '#0b0f17', light: '#f3f5f9' }
@@ -75,7 +76,7 @@ app.whenReady().then(() => {
   registerIpc()
   const win = createWindow()
 
-  // Хук для автоматизованих перевірок UI: скрипт отримує вікно та app
+  // Hook for automated UI checks: the script receives the window and app
   if (process.env.CYBERCAT_DEBUG_SCRIPT) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -100,7 +101,7 @@ app.on('before-quit', (e) => {
   if (cleaning) return
   cleaning = true
   e.preventDefault()
-  rejectAllPrompts('Застосунок закривається')
+  rejectAllPrompts(tr().main.app.quitting)
   transfers.cancelAll()
   terminals.closeAll()
   tails.stopAll()

@@ -4,6 +4,7 @@ import type { Session } from '../ssh/Session'
 import { getFs, RemoteFs } from '../fs'
 import type { FsAdapter } from '../fs/types'
 import { shq } from '../fs/sftpUtil'
+import { tr } from '../i18n'
 import { globToRegExp } from '../ssh/sshConfig'
 import type { FileEntry, SearchHit, SearchRequest, SearchResponse } from '@shared/types'
 
@@ -27,14 +28,14 @@ export async function runSearch(req: SearchRequest): Promise<SearchResponse> {
   const max = Math.min(HARD_MAX, Math.max(1, req.maxResults ?? DEFAULT_MAX))
   const name = req.name?.trim() || undefined
   const content = req.content && req.content.length ? req.content : undefined
-  if (!name && !content) throw new Error('Вкажіть назву або текст для пошуку')
-  if (!req.root) throw new Error('Не вказано теку для пошуку')
+  if (!name && !content) throw new Error(tr().main.search.nothingToFind)
+  if (!req.root) throw new Error(tr().main.search.noFolder)
 
   if (req.target !== 'local') {
     const session = sessions.require(req.target)
     if (session.info.hasShell) return shellSearch(session, req, name, content, max)
     const r = await walkSearch(getFs(req.target), req, name, content, max)
-    if (content) r.warning = 'Shell недоступний, пошук за вмістом виконано через SFTP і може бути повільним'
+    if (content) r.warning = tr().main.search.sftpContentWarning
     return r
   }
   return walkSearch(getFs('local'), req, name, content, max)
@@ -128,7 +129,7 @@ async function walkSearch(fs: FsAdapter, req: SearchRequest, name: string | unde
               if (found) hits.push({ entry: e, line: found.line, text: found.text })
             }
           } catch {
-            /* пропускаємо недоступні файли */
+            /* skip unreadable files */
           }
         }
       } else if (nameOk) {

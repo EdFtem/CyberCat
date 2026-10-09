@@ -2,14 +2,14 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'fs'
 import { join } from 'path'
 
-/** Простий JSON-файл у userData з атомарним записом. Шлях обчислюється ліниво. */
+/** A JSON file in userData with atomic writes. The path and the defaults are resolved lazily. */
 export class JsonStore<T> {
   private _file?: string
   private cache: T | undefined
 
   constructor(
     private name: string,
-    private defaults: T
+    private defaults: T | (() => T)
   ) {}
 
   private get file(): string {
@@ -21,18 +21,22 @@ export class JsonStore<T> {
     return this._file
   }
 
+  private resolveDefaults(): T {
+    return typeof this.defaults === 'function' ? (this.defaults as () => T)() : structuredClone(this.defaults)
+  }
+
   get(): T {
     if (this.cache !== undefined) return this.cache
     try {
       if (existsSync(this.file)) {
         const raw = readFileSync(this.file, 'utf8')
-        this.cache = { ...this.defaults, ...(JSON.parse(raw) as T) }
+        this.cache = { ...this.resolveDefaults(), ...(JSON.parse(raw) as T) }
         return this.cache
       }
     } catch (e) {
-      console.error(`[store] не вдалося прочитати ${this.file}:`, e)
+      console.error(`[store] failed to read ${this.file}:`, e)
     }
-    this.cache = structuredClone(this.defaults)
+    this.cache = this.resolveDefaults()
     return this.cache
   }
 

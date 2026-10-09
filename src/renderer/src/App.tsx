@@ -9,6 +9,7 @@ import { DialogHost } from './components/dialogs/DialogHost'
 import { ToastHost } from './components/ToastHost'
 import { Spinner } from './components/ui'
 import { cn } from '@/lib/cn'
+import { tr } from '@/lib/i18n'
 
 export default function App() {
   const booted = useApp((s) => s.booted)
@@ -22,7 +23,7 @@ export default function App() {
   const pushToast = useApp((s) => s.pushToast)
 
   useEffect(() => {
-    boot().catch((e) => pushToast({ kind: 'error', title: 'Помилка запуску', message: e instanceof Error ? e.message : String(e) }))
+    boot().catch((e) => pushToast({ kind: 'error', title: tr().app.bootFailed, message: e instanceof Error ? e.message : String(e) }))
   }, [boot, pushToast])
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 /**
- * E2E-тест бекенду: запускається всередині Electron (без вікна) проти тестового sshd.
+ * Backend E2E test: runs inside Electron (no window) against a test sshd.
  *   npx esbuild tests/e2e.ts --bundle --platform=node --format=cjs --outfile=out/test/e2e.cjs \
  *     --external:electron --external:ssh2 --external:iconv-lite --alias:@shared=./src/shared
  *   npx electron out/test/e2e.cjs
@@ -65,7 +65,7 @@ async function until(fn: () => boolean, timeoutMs: number, label: string): Promi
   }
 }
 
-/** Отримати ключ хоста напряму, щоб уникнути діалогу */
+/** Fetch the host key directly to avoid the confirmation dialog */
 function fetchHostKey(host = HOST, port = PORT): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const c = new Client()
@@ -100,10 +100,10 @@ async function main(): Promise<void> {
   const { openText, saveText } = await import('../src/main/editor/TextEditor')
   const { transfers } = await import('../src/main/transfer/TransferManager')
 
-  console.log('\n[1] Ключ хоста та підключення')
+  console.log('\n[1] Host key and connection')
   const hostKey = await fetchHostKey()
   hostKeys.save(HOST, PORT, hostKey)
-  ok(hostKeys.lookup(HOST, PORT)?.fingerprint.startsWith('SHA256:'), 'відбиток збережено')
+  ok(hostKeys.lookup(HOST, PORT)?.fingerprint.startsWith('SHA256:'), 'fingerprint saved')
 
   const info = await sessions.connect({
     adHoc: {
@@ -116,14 +116,14 @@ async function main(): Promise<void> {
     },
     password: PASS
   })
-  eq(info.status, 'connected', 'статус connected')
-  ok(info.homeDir && info.homeDir.startsWith('/'), `домашня тека ${info.homeDir}`)
-  ok(info.hasShell, 'shell доступний')
+  eq(info.status, 'connected', 'status connected')
+  ok(info.homeDir && info.homeDir.startsWith('/'), `home directory ${info.homeDir}`)
+  ok(info.hasShell, 'shell available')
   const session = sessions.require(info.id)
   const remote = new RemoteFs(session)
   const home = info.homeDir!
 
-  console.log('\n[2] Операції з файлами на сервері')
+  console.log('\n[2] Remote file operations')
   const base = `${home}/cc-test-${randomBytes(3).toString('hex')}`
   await remote.mkdir(base)
   await remote.ensureDir(`${base}/a/b/c`)
@@ -134,50 +134,50 @@ async function main(): Promise<void> {
   } catch {
     threw = true
   }
-  ok(threw, 'createFile не перезаписує існуючий файл')
+  ok(threw, 'createFile does not overwrite an existing file')
   await remote.writeFileAtomic(`${base}/hello.txt`, Buffer.from('привіт\nсвіт\n', 'utf8'))
   const read = await remote.readFile(`${base}/hello.txt`)
-  eq(read.data.toString('utf8'), 'привіт\nсвіт\n', 'readFile після writeFileAtomic')
+  eq(read.data.toString('utf8'), 'привіт\nсвіт\n', 'readFile after writeFileAtomic')
   await remote.chmod(`${base}/hello.txt`, 0o600, false)
   const st = await remote.stat(`${base}/hello.txt`)
   eq(st.mode, 0o600, 'chmod 600')
   await session.exec(`ln -s ${base}/a ${base}/link-to-a`)
   const list = await remote.list(base)
   const names = list.map((e) => e.name).sort()
-  eq(names.join(','), 'a,empty.txt,hello.txt,link-to-a', 'список містить усі елементи')
+  eq(names.join(','), 'a,empty.txt,hello.txt,link-to-a', 'listing contains all entries')
   const link = list.find((e) => e.name === 'link-to-a')!
-  ok(link.isSymlink && link.isDir && link.linkTarget === `${base}/a`, 'символічне посилання розпізнано як тека з ціллю')
-  ok(list.find((e) => e.name === 'hello.txt')?.owner === USER, `власник з longname = ${USER}`)
+  ok(link.isSymlink && link.isDir && link.linkTarget === `${base}/a`, 'symlink recognized as a directory with its target')
+  ok(list.find((e) => e.name === 'hello.txt')?.owner === USER, `owner from longname = ${USER}`)
   await remote.rename(`${base}/hello.txt`, `${base}/hello2.txt`)
   ok((await remote.list(base)).some((e) => e.name === 'hello2.txt'), 'rename')
   const du = await remote.diskUsage(base)
   ok(du && du.total > 0 && du.free >= 0, `statvfs: free ${du?.free}`)
   await remote.chmod(`${base}/a`, 0o700, true)
   const cst = await remote.stat(`${base}/a/b/c`)
-  eq(cst.mode, 0o700, 'рекурсивний chmod')
+  eq(cst.mode, 0o700, 'recursive chmod')
 
-  console.log('\n[3] Текстовий редактор: кодування, EOL, конфлікти')
+  console.log('\n[3] Text editor: encoding, EOL, conflicts')
   await remote.writeFileAtomic(`${base}/win.txt`, Buffer.from('line1\r\nline2\r\n', 'utf8'))
   const doc = await openText(info.id, `${base}/win.txt`)
-  eq(doc.eol, 'CRLF', 'виявлено CRLF')
-  eq(doc.encoding, 'utf-8', 'виявлено utf-8')
+  eq(doc.eol, 'CRLF', 'CRLF detected')
+  eq(doc.encoding, 'utf-8', 'utf-8 detected')
   const saved = await saveText({ target: info.id, path: doc.path, content: 'line1\nline2\nline3', eol: doc.eol, encoding: doc.encoding, expectedMtime: doc.mtime })
-  ok(saved.ok, 'збереження без конфлікту')
+  ok(saved.ok, 'save without conflict')
   const after = await remote.readFile(`${base}/win.txt`)
-  eq(after.data.toString('utf8'), 'line1\r\nline2\r\nline3', 'EOL збережено як CRLF')
+  eq(after.data.toString('utf8'), 'line1\r\nline2\r\nline3', 'EOL preserved as CRLF')
   const conflict = await saveText({ target: info.id, path: doc.path, content: 'x', eol: 'LF', encoding: 'utf-8', expectedMtime: doc.mtime - 5000 })
-  ok(!conflict.ok && conflict.conflict, 'конфлікт виявлено за mtime')
+  ok(!conflict.ok && conflict.conflict, 'conflict detected by mtime')
   const forced = await saveText({ target: info.id, path: doc.path, content: 'x', eol: 'LF', encoding: 'utf-8', expectedMtime: doc.mtime - 5000, force: true })
-  ok(forced.ok, 'примусове збереження')
-  const cp1251 = Buffer.from([0xcf, 0xf0, 0xe8, 0xe2, 0xb3, 0xf2]) // "Привіт" у windows-1251
+  ok(forced.ok, 'forced save')
+  const cp1251 = Buffer.from([0xcf, 0xf0, 0xe8, 0xe2, 0xb3, 0xf2]) // "Привіт" in windows-1251
   await remote.writeFileAtomic(`${base}/cp.txt`, cp1251)
   const cpDoc = await openText(info.id, `${base}/cp.txt`)
-  eq(cpDoc.encoding, 'windows-1251', 'виявлено windows-1251')
-  eq(cpDoc.content, 'Привіт', 'декодування cp1251')
+  eq(cpDoc.encoding, 'windows-1251', 'windows-1251 detected')
+  eq(cpDoc.content, 'Привіт', 'cp1251 decoding')
   const cpSave = await saveText({ target: info.id, path: cpDoc.path, content: 'Привіт!', eol: 'LF', encoding: cpDoc.encoding, expectedMtime: cpDoc.mtime })
-  ok(cpSave.ok && (await remote.readFile(`${base}/cp.txt`)).data.length === 7, 'збережено назад у cp1251')
+  ok(cpSave.ok && (await remote.readFile(`${base}/cp.txt`)).data.length === 7, 'saved back as cp1251')
 
-  console.log('\n[4] Передачі: відвантаження дерева, завантаження, хеші')
+  console.log('\n[4] Transfers: tree upload, download, hashes')
   const localSrc = await fsp.mkdtemp(join(tmpdir(), 'cc-src-'))
   await fsp.mkdir(join(localSrc, 'nested', 'deep'), { recursive: true })
   const big = randomBytes(6 * 1024 * 1024 + 123)
@@ -198,14 +198,14 @@ async function main(): Promise<void> {
   const allDone = (): boolean => transfers.summary().items.every((i) => ['done', 'error', 'skipped', 'cancelled'].includes(i.status))
   await until(allDone, 60_000, 'upload done')
   let items = transfers.summary().items
-  eq(items.length, 4, 'у черзі 4 файли')
-  ok(items.every((i) => i.status === 'done'), `усі done: ${items.map((i) => `${i.name}:${i.status}${i.error ? '(' + i.error + ')' : ''}`).join(', ')}`)
+  eq(items.length, 4, '4 files in queue')
+  ok(items.every((i) => i.status === 'done'), `all done: ${items.map((i) => `${i.name}:${i.status}${i.error ? '(' + i.error + ')' : ''}`).join(', ')}`)
   const remoteHash = (p: string): Promise<string> => session.exec(`sha256sum ${p} | cut -d' ' -f1`).then((r) => r.stdout.trim())
-  eq(await remoteHash(`${base}/up/big.bin`), sha256(big), 'sha256 big.bin на сервері')
-  eq(await remoteHash(`${base}/up/nested/deep/mid.bin`), sha256(await fsp.readFile(join(localSrc, 'nested', 'deep', 'mid.bin'))), 'sha256 вкладеного файлу')
-  eq((await remote.stat(`${base}/up/nested/deep/zero.bin`)).size, 0, 'порожній файл відвантажено')
+  eq(await remoteHash(`${base}/up/big.bin`), sha256(big), 'sha256 of big.bin on server')
+  eq(await remoteHash(`${base}/up/nested/deep/mid.bin`), sha256(await fsp.readFile(join(localSrc, 'nested', 'deep', 'mid.bin'))), 'sha256 of nested file')
+  eq((await remote.stat(`${base}/up/nested/deep/zero.bin`)).size, 0, 'empty file uploaded')
   const srcMtime = (await fsp.stat(join(localSrc, 'big.bin'))).mtimeMs
-  ok(Math.abs((await remote.stat(`${base}/up/big.bin`)).mtime - srcMtime) < 2000, 'mtime збережено')
+  ok(Math.abs((await remote.stat(`${base}/up/big.bin`)).mtime - srcMtime) < 2000, 'mtime preserved')
 
   transfers.clearFinished()
   const localDst = await fsp.mkdtemp(join(tmpdir(), 'cc-dst-'))
@@ -217,19 +217,19 @@ async function main(): Promise<void> {
   })
   await until(allDone, 60_000, 'download done')
   items = transfers.summary().items
-  ok(items.length === 4 && items.every((i) => i.status === 'done'), `завантаження: ${items.map((i) => i.status).join(',')}`)
-  eq(sha256(await fsp.readFile(join(localDst, 'up', 'big.bin'))), sha256(big), 'sha256 завантаженого big.bin')
-  eq((await fsp.readFile(join(localDst, 'up', 'nested', 'small.txt'))).toString(), 'small', 'вкладений текстовий файл')
+  ok(items.length === 4 && items.every((i) => i.status === 'done'), `download: ${items.map((i) => i.status).join(',')}`)
+  eq(sha256(await fsp.readFile(join(localDst, 'up', 'big.bin'))), sha256(big), 'sha256 of downloaded big.bin')
+  eq((await fsp.readFile(join(localDst, 'up', 'nested', 'small.txt'))).toString(), 'small', 'nested text file')
 
-  console.log('\n[5] Передачі: політики перезапису, пауза, скасування та відновлення')
+  console.log('\n[5] Transfers: overwrite policies, pause, cancel and resume')
   transfers.clearFinished()
   await transfers.enqueue({ sessionId: info.id, direction: 'upload', sources: [{ path: join(localSrc, 'big.bin'), name: 'big.bin', isDir: false }], destDir: `${base}/up`, policy: 'skip' })
   await until(allDone, 30_000, 'skip done')
-  eq(transfers.summary().items[0].status, 'skipped', 'політика skip')
+  eq(transfers.summary().items[0].status, 'skipped', 'skip policy')
   transfers.clearFinished()
   await transfers.enqueue({ sessionId: info.id, direction: 'upload', sources: [{ path: join(localSrc, 'big.bin'), name: 'big.bin', isDir: false }], destDir: `${base}/up`, policy: 'overwrite' })
   await until(allDone, 60_000, 'overwrite done')
-  eq(transfers.summary().items[0].status, 'done', 'політика overwrite')
+  eq(transfers.summary().items[0].status, 'done', 'overwrite policy')
   transfers.clearFinished()
 
   const huge = randomBytes(40 * 1024 * 1024)
@@ -241,25 +241,25 @@ async function main(): Promise<void> {
   await until(() => item().status === 'paused', 10_000, 'paused')
   const atPause = item().transferred
   await wait(700)
-  ok(item().transferred - atPause < 2 * 1024 * 1024, `на паузі передача зупинилась (${item().transferred - atPause} байт після паузи)`)
+  ok(item().transferred - atPause < 2 * 1024 * 1024, `transfer stopped while paused (${item().transferred - atPause} bytes after pause)`)
   transfers.resume(item().id)
   await until(() => item().status === 'running', 10_000, 'resumed')
   await until(() => item().transferred > atPause + 2 * 1024 * 1024, 30_000, 'progress after resume')
   transfers.cancel(item().id)
   await until(() => item().status === 'cancelled', 10_000, 'cancelled')
   const resumeFrom = item().resumeFrom ?? 0
-  ok(resumeFrom > 0 && resumeFrom < huge.length, `після скасування resumeFrom=${resumeFrom}`)
+  ok(resumeFrom > 0 && resumeFrom < huge.length, `resumeFrom=${resumeFrom} after cancel`)
   const partialSize = (await remote.stat(`${base}/up/huge.bin`)).size
-  eq(partialSize, resumeFrom, 'частковий файл обрізано до resumeFrom')
+  eq(partialSize, resumeFrom, 'partial file truncated to resumeFrom')
   transfers.retry(item().id)
   await until(() => item().status === 'done', 120_000, 'retry done')
-  eq(await remoteHash(`${base}/up/huge.bin`), sha256(huge), 'sha256 після відновлення збігається')
-  ok(item().transferred === huge.length, 'лічильник байтів дорівнює розміру')
+  eq(await remoteHash(`${base}/up/huge.bin`), sha256(huge), 'sha256 matches after resume')
+  ok(item().transferred === huge.length, 'byte counter equals file size')
 
-  console.log('\n[6a] ssh config: розбір і ефективні опції')
+  console.log('\n[6a] ssh config: parsing and effective options')
   const { parseSshConfigText, hostFromBlocks, matchesPatterns } = await import('../src/main/ssh/sshConfig')
   const blocks = parseSshConfigText(`
-# коментар
+# comment
 IdentityFile ~/.ssh/global_key
 Host !prod-eu prod-*
     Port 2300
@@ -280,22 +280,22 @@ Host *
   eq(prod.user, 'deploy', 'User')
   eq(prod.port, 2200, 'Port')
   eq(prod.proxyJump, 'bastion', 'ProxyJump')
-  eq(hostFromBlocks(blocks, 'prod-us').port, 2300, 'перший збіг виграє')
-  eq(hostFromBlocks(blocks, 'prod-eu').port, 2200, 'заперечний шаблон виключає блок')
-  eq(hostFromBlocks(blocks, 'unknown').user, 'fallback', 'Host * як запасний варіант')
-  eq(hostFromBlocks(blocks, 'unknown').host, 'unknown', 'HostName за замовчуванням дорівнює alias')
+  eq(hostFromBlocks(blocks, 'prod-us').port, 2300, 'first match wins')
+  eq(hostFromBlocks(blocks, 'prod-eu').port, 2200, 'negated pattern excludes the block')
+  eq(hostFromBlocks(blocks, 'unknown').user, 'fallback', 'Host * as fallback')
+  eq(hostFromBlocks(blocks, 'unknown').host, 'unknown', 'HostName defaults to the alias')
   ok(
     matchesPatterns(['*.example.com', '!bad.example.com'], 'good.example.com') && !matchesPatterns(['*.example.com', '!bad.example.com'], 'bad.example.com'),
-    'глоб-шаблони з запереченням'
+    'glob patterns with negation'
   )
   const { parseProxyJump } = await import('../src/main/ssh/Session')
   const pj = parseProxyJump('jump@bastion:2222, other, [::1]:22')
   ok(
     pj.length === 3 && pj[0].user === 'jump' && pj[0].host === 'bastion' && pj[0].port === 2222 && pj[1].host === 'other' && pj[1].port === undefined && pj[2].host === '::1' && pj[2].port === 22,
-    'розбір ProxyJump'
+    'ProxyJump parsing'
   )
 
-  console.log('\n[6b] Живий перегляд логу')
+  console.log('\n[6b] Live log view')
   const { tails } = await import('../src/main/tail/TailService')
   const { bus } = await import('../src/main/bus')
   const logPath = `${base}/app.log`
@@ -310,9 +310,9 @@ Host *
   await until(() => tails.snapshot(tailId).text.includes('line2'), 5000, 'tail initial')
   await session.exec(`echo line3 >> ${logPath}`)
   await until(() => received.join('').includes('line3'), 8000, 'tail live')
-  ok(true, 'tail -F через shell отримує нові рядки')
+  ok(true, 'tail -F over shell receives new lines')
   const snap = tails.snapshot(tailId)
-  ok(snap.text.includes('line1') && snap.text.includes('line3') && snap.seq >= 2, `snapshot містить історію (seq ${snap.seq})`)
+  ok(snap.text.includes('line1') && snap.text.includes('line3') && snap.seq >= 2, `snapshot contains history (seq ${snap.seq})`)
   tails.stop(tailId)
   bus.off('tail:data', onTail)
 
@@ -328,24 +328,24 @@ Host *
   await until(() => tails.snapshot(tail2).text.includes('b'), 5000, 'local tail initial')
   await fsp.appendFile(localLog, 'c\n')
   await until(() => received2.join('').includes('c'), 8000, 'local tail poll')
-  ok(true, 'опитування локального файлу підхоплює дописані рядки')
+  ok(true, 'local file polling picks up appended lines')
   tails.stop(tail2)
   bus.off('tail:data', onTail2)
 
-  console.log('\n[6c] Пошук')
+  console.log('\n[6c] Search')
   const { runSearch } = await import('../src/main/search/SearchService')
   await remote.writeFileAtomic(`${base}/a/needle.txt`, Buffer.from('hello\nfind me here\n'))
   const byName = await runSearch({ target: info.id, root: base, name: 'needle' })
-  ok(byName.method === 'shell' && byName.hits.some((h) => h.entry.path === `${base}/a/needle.txt`), `пошук за назвою через shell (${byName.hits.length})`)
+  ok(byName.method === 'shell' && byName.hits.some((h) => h.entry.path === `${base}/a/needle.txt`), `search by name via shell (${byName.hits.length})`)
   const byContent = await runSearch({ target: info.id, root: base, content: 'FIND ME' })
   const hit = byContent.hits.find((h) => h.entry.path === `${base}/a/needle.txt`)
-  ok(!!hit && hit.line === 2 && /find me/i.test(hit.text ?? ''), `пошук за вмістом без урахування регістру: рядок ${hit?.line}, «${hit?.text}»`)
+  ok(!!hit && hit.line === 2 && /find me/i.test(hit.text ?? ''), `case-insensitive content search: line ${hit?.line}, "${hit?.text}"`)
   const byBoth = await runSearch({ target: info.id, root: base, name: '*.txt', content: 'hello', caseSensitive: true })
-  ok(byBoth.hits.length === 1 && byBoth.hits[0].entry.name === 'needle.txt', 'назва і вміст разом')
+  ok(byBoth.hits.length === 1 && byBoth.hits[0].entry.name === 'needle.txt', 'name and content combined')
   const walked = await runSearch({ target: 'local', root: localSrc, name: '*.bin' })
-  ok(walked.method === 'walk' && walked.hits.length >= 3, `локальний пошук за назвою: ${walked.hits.length} збігів`)
+  ok(walked.method === 'walk' && walked.hits.length >= 3, `local search by name: ${walked.hits.length} matches`)
   const walkedContent = await runSearch({ target: 'local', root: localSrc, content: 'small' })
-  ok(walkedContent.hits.some((h) => h.entry.name === 'small.txt' && h.line === 1), 'локальний пошук за вмістом')
+  ok(walkedContent.hits.some((h) => h.entry.name === 'small.txt' && h.line === 1), 'local search by content')
 
   console.log('\n[6d] ProxyJump')
   if (process.env.CC_TEST_JUMP && process.env.CC_TEST_TARGET) {
@@ -356,36 +356,36 @@ Host *
     const targetHost = tm[1]
     const targetPort = Number(tm[2] ?? 22)
     hostKeys.save(jumpHost, jumpPort, await fetchHostKey(jumpHost, jumpPort))
-    // Цільовий сервер з боку bastion має іншу адресу, але той самий ключ
+    // Seen from the bastion, the target server has a different address but the same key
     hostKeys.save(targetHost, targetPort, hostKey)
     const viaJump = await sessions.connect({
       adHoc: { name: 'via-jump', host: targetHost, port: targetPort, username: USER, auth: 'password', savePassword: false, proxyJump: process.env.CC_TEST_JUMP },
       password: PASS
     })
-    eq(viaJump.status, 'connected', 'підключення через ProxyJump')
+    eq(viaJump.status, 'connected', 'connection via ProxyJump')
     const viaList = await new RemoteFs(sessions.require(viaJump.id)).list(viaJump.homeDir!)
-    ok(viaList.length > 0, `список тек через тунель (${viaList.length})`)
+    ok(viaList.length > 0, `directory listing through the tunnel (${viaList.length})`)
     const viaExec = await sessions.require(viaJump.id).exec('hostname')
-    ok(viaExec.stdout.trim().length > 0, `shell через тунель: ${viaExec.stdout.trim()}`)
+    ok(viaExec.stdout.trim().length > 0, `shell through the tunnel: ${viaExec.stdout.trim()}`)
     sessions.remove(viaJump.id)
   } else {
-    console.log('  - пропущено: задайте CC_TEST_JUMP=cat@127.0.0.1:2223 і CC_TEST_TARGET=<ip контейнера>:2222')
+    console.log('  - skipped: set CC_TEST_JUMP=cat@127.0.0.1:2223 and CC_TEST_TARGET=<container ip>:2222')
   }
 
-  console.log('\n[6e] sudo-режим')
+  console.log('\n[6e] sudo mode')
   const sudoProbe = await session.exec('sudo -n true 2>&1')
   if (/not found|No such file/i.test(sudoProbe.stdout + sudoProbe.stderr)) {
-    console.log('  - пропущено: на сервері немає sudo')
+    console.log('  - skipped: sudo is not available on the server')
   } else {
     await session.enableSudo(PASS)
-    ok(session.sudoActive && session.info.sudo === true, 'sudo увімкнено')
+    ok(session.sudoActive && session.info.sudo === true, 'sudo enabled')
     const rootDir = `/root/cc-sudo-${randomBytes(3).toString('hex')}`
     await remote.mkdir(rootDir)
     await remote.writeFileAtomic(`${rootDir}/x.txt`, Buffer.from('root'))
     const made = await remote.list(rootDir)
-    ok(made.length === 1 && made[0].owner === 'root', `файл у /root створено від root (власник ${made[0]?.owner})`)
+    ok(made.length === 1 && made[0].owner === 'root', `file in /root created as root (owner ${made[0]?.owner})`)
     const whoami = await session.exec('id -u')
-    eq(whoami.stdout.trim(), '0', 'exec у sudo-режимі виконується від root')
+    eq(whoami.stdout.trim(), '0', 'exec in sudo mode runs as root')
     await remote.remove(rootDir, true)
     let goneRoot = false
     try {
@@ -393,20 +393,20 @@ Host *
     } catch {
       goneRoot = true
     }
-    ok(goneRoot, 'rm -rf через sudo')
+    ok(goneRoot, 'rm -rf via sudo')
     session.disableSudo()
-    ok(!session.sudoActive && session.info.sudo === false, 'sudo вимкнено')
-    eq((await session.exec('id -un')).stdout.trim(), USER, 'exec знову від звичайного користувача')
+    ok(!session.sudoActive && session.info.sudo === false, 'sudo disabled')
+    eq((await session.exec('id -un')).stdout.trim(), USER, 'exec runs as the regular user again')
     let denied = false
     try {
       await remote.mkdir(`/root/cc-denied-${randomBytes(2).toString('hex')}`)
     } catch {
       denied = true
     }
-    ok(denied, 'без sudo запис у /root заборонено')
+    ok(denied, 'writing to /root is denied without sudo')
   }
 
-  console.log('\n[6f] Переміщення, копіювання, порівняння, стеження')
+  console.log('\n[6f] Move, copy, compare, watch')
   const { localFs } = await import('../src/main/fs/LocalFs')
   const { runCompare } = await import('../src/main/sync/CompareService')
   const { watches } = await import('../src/main/sync/WatchService')
@@ -420,14 +420,14 @@ Host *
   await transfers.enqueue({ sessionId: info.id, direction: 'upload', sources: [{ path: moveSrc, name: 'movedir', isDir: true }], destDir: `${base}/moved`, move: true })
   await untilDone(allFinished, 60_000, 'move done')
   await wait(500)
-  ok(transfers.summary().items.every((i) => i.status === 'done'), 'переміщення: усі файли передано')
-  eq((await remote.stat(`${base}/moved/movedir/sub/b.txt`)).size, 1, 'файл є на сервері після переміщення')
-  ok(!(await exists(moveSrc)), 'локальне джерело видалено разом із порожніми теками')
+  ok(transfers.summary().items.every((i) => i.status === 'done'), 'move: all files transferred')
+  eq((await remote.stat(`${base}/moved/movedir/sub/b.txt`)).size, 1, 'file exists on the server after move')
+  ok(!(await exists(moveSrc)), 'local source removed along with empty directories')
 
   await remote.copy(`${base}/moved/movedir`, `${base}/moved/copy`)
-  eq((await remote.stat(`${base}/moved/copy/sub/b.txt`)).size, 1, 'копіювання на сервері через cp -a')
+  eq((await remote.stat(`${base}/moved/copy/sub/b.txt`)).size, 1, 'remote copy via cp -a')
   await localFs.copy(join(localSrc, 'nested'), join(localSrc, 'nested-copy'))
-  ok(await exists(join(localSrc, 'nested-copy', 'deep', 'mid.bin')), 'локальне рекурсивне копіювання')
+  ok(await exists(join(localSrc, 'nested-copy', 'deep', 'mid.bin')), 'local recursive copy')
 
   const cmpLocal = await fsp.mkdtemp(join(tmpdir(), 'cc-cmp-'))
   const cmpRemote = `${base}/cmp`
@@ -441,22 +441,22 @@ Host *
   await fsp.mkdir(join(cmpLocal, 'sub'))
   await fsp.writeFile(join(cmpLocal, 'sub', 'deep.txt'), 'deep')
   const cmp = await runCompare({ sessionId: info.id, localDir: cmpLocal, remoteDir: cmpRemote, byHash: true })
-  ok(cmp.hashed, 'хешування увімкнено')
-  eq(cmp.counts.onlyLocal, 3, 'лише локально: only-local.txt, sub, sub/deep.txt')
-  eq(cmp.counts.onlyRemote, 1, 'лише на сервері: only-remote.txt')
+  ok(cmp.hashed, 'hashing enabled')
+  eq(cmp.counts.onlyLocal, 3, 'local only: only-local.txt, sub, sub/deep.txt')
+  eq(cmp.counts.onlyRemote, 1, 'remote only: only-remote.txt')
   const diffEntry = cmp.entries.find((e) => e.rel === 'diff.txt')
-  ok(!!diffEntry && diffEntry.status === 'different' && diffEntry.reason === 'hash', 'однаковий розмір, різний вміст виявлено за sha256')
-  eq(cmp.counts.same, 1, 'same.txt збігається за хешем')
+  ok(!!diffEntry && diffEntry.status === 'different' && diffEntry.reason === 'hash', 'same size, different content detected by sha256')
+  eq(cmp.counts.same, 1, 'same.txt matches by hash')
   const cmpSameTime = await runCompare({ sessionId: info.id, localDir: cmpLocal, remoteDir: cmpRemote })
-  ok(!cmpSameTime.entries.some((e) => e.rel === 'diff.txt'), 'без хешу однаковий розмір і дата вважаються збігом')
+  ok(!cmpSameTime.entries.some((e) => e.rel === 'diff.txt'), 'without hashing, same size and date count as a match')
   const older = (Date.now() - 60_000) / 1000
   await fsp.utimes(join(cmpLocal, 'diff.txt'), older, older)
   const cmpQuick = await runCompare({ sessionId: info.id, localDir: cmpLocal, remoteDir: cmpRemote })
   const diffQuick = cmpQuick.entries.find((e) => e.rel === 'diff.txt')
-  ok(!!diffQuick && diffQuick.status === 'different' && diffQuick.reason === 'mtime' && diffQuick.newer === 'remote', 'без хешу відмінність за датою, новіший на сервері')
+  ok(!!diffQuick && diffQuick.status === 'different' && diffQuick.reason === 'mtime' && diffQuick.newer === 'remote', 'without hashing, difference by date, newer on the server')
 
   const w = watches.start(info.id, cmpLocal, cmpRemote)
-  ok(watches.list().some((x) => x.id === w.id), 'стеження запущено')
+  ok(watches.list().some((x) => x.id === w.id), 'watch started')
   await wait(400)
   await fsp.writeFile(join(cmpLocal, 'watched.txt'), 'watched!')
   await untilAsync(async () => {
@@ -466,7 +466,7 @@ Host *
       return false
     }
   }, 20_000, 'watch upload')
-  ok(true, 'новий локальний файл автоматично відвантажено')
+  ok(true, 'new local file uploaded automatically')
   await fsp.mkdir(join(cmpLocal, 'newdir'))
   await fsp.writeFile(join(cmpLocal, 'newdir', 'inner.txt'), 'inner')
   await untilAsync(async () => {
@@ -476,12 +476,12 @@ Host *
       return false
     }
   }, 20_000, 'watch nested upload')
-  ok(true, 'файл у новій підтеці відвантажено')
+  ok(true, 'file in a new subdirectory uploaded')
   watches.stop(w.id)
-  ok(!watches.list().some((x) => x.id === w.id), 'стеження зупинено')
+  ok(!watches.list().some((x) => x.id === w.id), 'watch stopped')
   await fsp.rm(cmpLocal, { recursive: true, force: true })
 
-  console.log('\n[6g] Docker: розбір портів, виявлення, тунелі')
+  console.log('\n[6g] Docker: port parsing, detection, tunnels')
   const dockerSvc = await import('../src/main/docker/DockerService')
   const { tunnels } = await import('../src/main/tunnel/TunnelService')
   const ports = dockerSvc.parsePorts('0.0.0.0:8080->80/tcp, :::8080->80/tcp, 127.0.0.1:5432->5432/tcp, 9000/tcp, 0.0.0.0:53->53/udp')
@@ -495,11 +495,11 @@ Host *
       ports[2].containerPort === 80 &&
       ports[3].hostPort === undefined &&
       ports[3].containerPort === 9000,
-    `розбір портів без дублікатів IPv6 (${ports.length} записи)`
+    `port parsing without IPv6 duplicates (${ports.length} entries)`
   )
 
   const tun = await tunnels.start(info.id, '127.0.0.1', 2222)
-  ok(tun.localPort > 0, `тунель localhost:${tun.localPort} → 127.0.0.1:2222 відкрито`)
+  ok(tun.localPort > 0, `tunnel localhost:${tun.localPort} → 127.0.0.1:2222 opened`)
   const banner = await new Promise<string>((resolve, reject) => {
     const sock = net.connect(tun.localPort, '127.0.0.1')
     const timer = setTimeout(() => {
@@ -517,37 +517,37 @@ Host *
     })
     sock.on('close', () => {
       clearTimeout(timer)
-      reject(new Error('тунель закрив з’єднання без даних: сервер відхилив forwardOut'))
+      reject(new Error('tunnel closed the connection without data: the server rejected forwardOut'))
     })
   })
-  ok(banner.startsWith('SSH-2.0'), `через тунель видно банер sshd: ${banner.trim()}`)
+  ok(banner.startsWith('SSH-2.0'), `sshd banner visible through the tunnel: ${banner.trim()}`)
   tunnels.stop(tun.id)
-  ok(!tunnels.list().some((t) => t.id === tun.id), 'тунель закрито')
+  ok(!tunnels.list().some((t) => t.id === tun.id), 'tunnel closed')
 
   let dinfo = await dockerSvc.detectDocker(info.id, true)
   console.log(`  - docker: available=${dinfo.available} cli=${dinfo.cli} compose=${dinfo.compose} needsSudo=${dinfo.needsSudo ?? false} error=${dinfo.error ?? ''}`)
   if (!dinfo.available) {
-    console.log('  - пропущено: на тестовому сервері немає docker')
+    console.log('  - skipped: docker is not available on the test server')
   } else {
     if (dinfo.error && dinfo.needsSudo) {
-      ok(true, 'без доступу до сокета повідомляє про потребу в sudo')
+      ok(true, 'reports that sudo is needed when the socket is not accessible')
       await session.enableSudo(PASS)
       dinfo = await dockerSvc.detectDocker(info.id, true)
     }
-    ok(dinfo.available && !dinfo.error, `docker доступний: ${dinfo.cli} ${dinfo.serverVersion}`)
+    ok(dinfo.available && !dinfo.error, `docker available: ${dinfo.cli} ${dinfo.serverVersion}`)
     const victim = `cybercat-victim-${randomBytes(2).toString('hex')}`
     const run = await session.exec(`docker run -d --name ${victim} -p 18080:80 nginx:alpine 2>&1`, 120_000)
-    ok(run.code === 0, `тестовий контейнер ${victim} запущено`)
+    ok(run.code === 0, `test container ${victim} started`)
     try {
       await wait(1500)
       let list = await dockerSvc.listContainers(info.id)
       const me = list.find((c) => c.name === victim)
-      ok(!!me && me.state === 'running' && me.ports.some((p) => p.hostPort === 18080 && p.containerPort === 80), `контейнер у списку з портом 18080→80 (${me?.ports.map((p) => p.hostPort).join(',')})`)
-      ok(list.some((c) => c.name === 'cybercat-sshd'), 'список містить контейнери хоста')
+      ok(!!me && me.state === 'running' && me.ports.some((p) => p.hostPort === 18080 && p.containerPort === 80), `container listed with port 18080→80 (${me?.ports.map((p) => p.hostPort).join(',')})`)
+      ok(list.some((c) => c.name === 'cybercat-sshd'), 'listing includes host containers')
       const insp = (await dockerSvc.inspectContainer(info.id, me!.id)) as { Config?: { Image?: string }; NetworkSettings?: { IPAddress?: string; Networks?: Record<string, { IPAddress: string }> } }
-      eq(insp.Config?.Image, 'nginx:alpine', 'inspect повертає образ')
+      eq(insp.Config?.Image, 'nginx:alpine', 'inspect returns the image')
       const victimIp = insp.NetworkSettings?.IPAddress || Object.values(insp.NetworkSettings?.Networks ?? {})[0]?.IPAddress
-      ok(!!victimIp, `IP контейнера ${victimIp}`)
+      ok(!!victimIp, `container IP ${victimIp}`)
 
       const logTail = await tails.startCommand(info.id, await dockerSvc.logsCommand(info.id, me!.id, 50))
       const web = await tunnels.start(info.id, victimIp!, 80)
@@ -557,11 +557,11 @@ Host *
           resolve(res.statusCode ?? 0)
         })
         req.on('error', reject)
-        req.on('timeout', () => reject(new Error('timeout: http через тунель')))
+        req.on('timeout', () => reject(new Error('timeout: http through the tunnel')))
       })
-      eq(status, 200, 'HTTP 200 від nginx через SSH-тунель')
+      eq(status, 200, 'HTTP 200 from nginx through the SSH tunnel')
       await until(() => /GET \/ HTTP/.test(tails.snapshot(logTail).text), 10_000, 'docker logs')
-      ok(true, 'docker logs -f показав запит, зроблений через тунель')
+      ok(true, 'docker logs -f showed the request made through the tunnel')
       tails.stop(logTail)
       tunnels.stop(web.id)
 
@@ -573,29 +573,29 @@ Host *
       ok(true, 'start → running')
       list = await dockerSvc.listContainers(info.id)
       const images = await dockerSvc.listImages(info.id)
-      ok(images.some((i) => i.repository === 'nginx' && i.tag === 'alpine' && i.inUse), 'образ nginx:alpine позначено як використовуваний')
+      ok(images.some((i) => i.repository === 'nginx' && i.tag === 'alpine' && i.inUse), 'nginx:alpine image marked as in use')
       const df = await dockerSvc.diskUsage(info.id)
       ok(df.some((d) => /Images/i.test(d.type)), `system df: ${df.map((d) => `${d.type}=${d.size}`).join(', ')}`)
       const shellCmd = await dockerSvc.execShellCommand(info.id, me!.id)
-      ok(/docker exec -it/.test(shellCmd) && (session.sudoActive ? shellCmd.startsWith('sudo ') : true), `команда shell: ${shellCmd.slice(0, 60)}…`)
+      ok(/docker exec -it/.test(shellCmd) && (session.sudoActive ? shellCmd.startsWith('sudo ') : true), `shell command: ${shellCmd.slice(0, 60)}…`)
       const composeCmd = await dockerSvc.composeCommand(info.id, 'demo', '/srv/demo', ['/srv/demo/docker-compose.yml'], 'up -d')
-      ok(/compose -p 'demo' --project-directory '\/srv\/demo' -f '\/srv\/demo\/docker-compose.yml' up -d$/.test(composeCmd), 'команда compose з проєктом, текою та файлом')
+      ok(/compose -p 'demo' --project-directory '\/srv\/demo' -f '\/srv\/demo\/docker-compose.yml' up -d$/.test(composeCmd), 'compose command with project, directory and file')
       await dockerSvc.containerAction(info.id, me!.id, 'rm', true)
       list = await dockerSvc.listContainers(info.id)
-      ok(!list.some((c) => c.name === victim), 'rm -f прибрав контейнер')
+      ok(!list.some((c) => c.name === victim), 'rm -f removed the container')
     } finally {
       await session.exec(`docker rm -f ${victim} >/dev/null 2>&1 || true`)
       if (session.sudoActive) session.disableSudo()
     }
   }
 
-  console.log('\n[6] Термінал (shell) та видалення')
+  console.log('\n[6] Terminal (shell) and deletion')
   const shell = await session.shell(80, 24)
   let out = ''
   shell.on('data', (d: Buffer) => (out += d.toString()))
   shell.write('echo CC_$((40+2))\n')
   await until(() => out.includes('CC_42'), 10_000, 'shell output')
-  ok(out.includes('CC_42'), 'shell виконує команди')
+  ok(out.includes('CC_42'), 'shell runs commands')
   shell.close()
 
   await remote.remove(base, true)
@@ -605,23 +605,23 @@ Host *
   } catch {
     gone = true
   }
-  ok(gone, 'рекурсивне видалення тестової теки')
+  ok(gone, 'recursive removal of the test directory')
 
-  console.log('\n[7] Відключення')
+  console.log('\n[7] Disconnect')
   sessions.disconnect(info.id)
   await wait(300)
-  eq(sessions.require(info.id).info.status, 'disconnected', 'статус disconnected')
+  eq(sessions.require(info.id).info.status, 'disconnected', 'status disconnected')
   sessions.remove(info.id)
 
   await fsp.rm(localSrc, { recursive: true, force: true })
   await fsp.rm(localDst, { recursive: true, force: true })
   await fsp.rm(userData, { recursive: true, force: true }).catch(() => {})
 
-  console.log(`\nРезультат: ${passes} пройдено, ${failures} провалено`)
+  console.log(`\nResult: ${passes} passed, ${failures} failed`)
   app.exit(failures ? 1 : 0)
 }
 
 main().catch((e) => {
-  console.error('\nТЕСТ ЗУПИНЕНО:', e)
+  console.error('\nTEST ABORTED:', e)
   app.exit(2)
 })

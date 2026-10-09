@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Code2, Container, Plug, RotateCcw, Terminal as TerminalIcon, TriangleAlert, Unplug, X } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { selectedEntries } from '@/lib/ops'
-import { formatBytes, countLabel } from '@/lib/format'
+import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/cn'
+import { useT } from '@/lib/i18n'
 import { Button, IconButton, Spinner, StatusDot, Badge } from '../ui'
 import { FilePane } from '../pane/FilePane'
 import { EditorView } from '../editor/EditorView'
@@ -23,6 +24,7 @@ function readNumber(key: string, fallback: number): number {
 }
 
 export function SessionView({ sid, visible }: { sid: string; visible: boolean }) {
+  const t = useT()
   const session = useApp((s) => s.sessions[sid])
   const ui = useApp((s) => s.ui[sid])
   const reconnect = useApp((s) => s.reconnect)
@@ -109,29 +111,29 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
           {session.status === 'error' || session.status === 'disconnected' ? (
             <>
               <TriangleAlert size={36} className="mx-auto text-danger" />
-              <h2 className="text-[16px] font-semibold mt-3">Не вдалося підключитися</h2>
-              <p className="text-[13px] text-muted mt-2 whitespace-pre-wrap">{session.error ?? 'Невідома помилка'}</p>
+              <h2 className="text-[16px] font-semibold mt-3">{t.session.connectFailed}</h2>
+              <p className="text-[13px] text-muted mt-2 whitespace-pre-wrap">{session.error ?? t.common.unknownError}</p>
               <p className="text-[12px] text-dim mt-2 font-mono">
                 {session.username}@{session.host}:{session.port}
               </p>
               <div className="flex justify-center gap-2 mt-5">
                 <Button variant="primary" icon={<RotateCcw size={14} />} onClick={() => void reconnect(sid)}>
-                  Повторити
+                  {t.common.retry}
                 </Button>
                 <Button icon={<X size={14} />} onClick={() => void closeTab(sid)}>
-                  Закрити
+                  {t.common.close}
                 </Button>
               </div>
             </>
           ) : (
             <>
               <Spinner size={30} className="mx-auto" />
-              <h2 className="text-[16px] font-semibold mt-3">Підключення…</h2>
+              <h2 className="text-[16px] font-semibold mt-3">{t.session.connecting}</h2>
               <p className="text-[12.5px] text-dim mt-2 font-mono">
                 {session.username}@{session.host}:{session.port}
               </p>
               <Button className="mt-5" onClick={() => void closeTab(sid)}>
-                Скасувати
+                {t.common.cancel}
               </Button>
             </>
           )}
@@ -149,12 +151,12 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
       {!connected && (
         <div className="flex items-center gap-3 px-4 h-9 bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] text-[12.5px] border-b border-border">
           {session.status === 'reconnecting' || session.status === 'connecting' ? <Spinner size={14} /> : <Unplug size={14} className="text-warning" />}
-          <span className="text-warning font-medium">{session.status === 'reconnecting' || session.status === 'connecting' ? 'Відновлення з’єднання…' : 'З’єднання втрачено'}</span>
+          <span className="text-warning font-medium">{session.status === 'reconnecting' || session.status === 'connecting' ? t.session.reconnecting : t.session.connectionLost}</span>
           <span className="text-muted truncate">{session.error}</span>
           <span className="flex-1" />
           {session.status !== 'reconnecting' && session.status !== 'connecting' && (
             <Button size="sm" variant="primary" icon={<Plug size={13} />} onClick={() => void reconnect(sid)}>
-              Підключитися знову
+              {t.session.reconnect}
             </Button>
           )}
         </div>
@@ -191,7 +193,7 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
         )}
       </div>
 
-      {/* Рядок стану */}
+      {/* Status bar */}
       <div className="flex items-center gap-3 px-3 h-7 border-t border-border bg-surface text-[11.5px] text-dim shrink-0">
         <span className="inline-flex items-center gap-1.5">
           <StatusDot status={session.status} />
@@ -200,23 +202,20 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
             {session.port !== 22 && `:${session.port}`}
           </span>
         </span>
-        {connected && <Badge tone={session.hasShell ? 'success' : 'warning'}>{session.hasShell ? 'SFTP + shell' : 'лише SFTP'}</Badge>}
+        {connected && <Badge tone={session.hasShell ? 'success' : 'warning'}>{session.hasShell ? 'SFTP + shell' : t.session.sftpOnly}</Badge>}
         {sel.length > 0 && (
-          <span>
-            {ui.activePane === 'local' ? 'Локально' : 'Сервер'}: вибрано {countLabel(sel.length, 'елемент', 'елементи', 'елементів')}
-            {selSize > 0 && `, ${formatBytes(selSize)}`}
-          </span>
+          <span>{t.session.selection(ui.activePane, sel.length, selSize > 0 ? formatBytes(selSize) : undefined)}</span>
         )}
         <span className="flex-1" />
         {ui.docs.length > 0 && (
-          <button type="button" className={cn('inline-flex items-center gap-1.5 hover:text-text', ui.editorVisible && 'text-accent')} onClick={() => setEditorVisible(sid, !ui.editorVisible)} title="Редактор (Ctrl+E)">
-            <Code2 size={13} /> {countLabel(ui.docs.length, 'файл', 'файли', 'файлів')} у редакторі
+          <button type="button" className={cn('inline-flex items-center gap-1.5 hover:text-text', ui.editorVisible && 'text-accent')} onClick={() => setEditorVisible(sid, !ui.editorVisible)} title={t.session.editorTitle}>
+            <Code2 size={13} /> {t.session.editorFiles(ui.docs.length)}
           </button>
         )}
         <IconButton size={22} title="Docker (Ctrl+Shift+D)" active={ui.dockerOpen} onClick={() => setDockerOpen(sid, !ui.dockerOpen)} disabled={!connected || !session.hasShell}>
           <Container size={13} />
         </IconButton>
-        <IconButton size={22} title="Термінал (Ctrl+`)" active={ui.terminalOpen} onClick={() => toggleTerminal(sid)} disabled={!connected}>
+        <IconButton size={22} title={t.session.terminalTitle} active={ui.terminalOpen} onClick={() => toggleTerminal(sid)} disabled={!connected}>
           <TerminalIcon size={13} />
         </IconButton>
       </div>

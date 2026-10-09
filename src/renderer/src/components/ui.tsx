@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { LoaderCircle, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { useT } from '@/lib/i18n'
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -157,6 +158,7 @@ export function Modal({
   width?: number
   closable?: boolean
 }) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -191,7 +193,7 @@ export function Modal({
             {subtitle && <div className="text-[12.5px] text-muted mt-1">{subtitle}</div>}
           </div>
           {closable && onClose && (
-            <IconButton onClick={onClose} title="Закрити" size={26}>
+            <IconButton onClick={onClose} title={t.common.close} size={26}>
               <X size={16} />
             </IconButton>
           )}

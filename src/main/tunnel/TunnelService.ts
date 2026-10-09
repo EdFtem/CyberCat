@@ -3,6 +3,7 @@ import net from 'net'
 import { broadcast, toast } from '../broadcast'
 import { bus } from '../bus'
 import { sessions } from '../ssh/SessionManager'
+import { tr } from '../i18n'
 import type { Tunnel } from '@shared/types'
 
 interface Active {
@@ -12,7 +13,7 @@ interface Active {
   warned?: boolean
 }
 
-/** Локальні тунелі до портів сервера через SSH (local port forwarding) */
+/** Local tunnels to server ports over SSH (local port forwarding) */
 class TunnelService {
   private tunnels = new Map<string, Active>()
 
@@ -49,9 +50,9 @@ class TunnelService {
           if (active && !active.warned) {
             active.warned = true
             const hint = /administratively prohibited|open failed/i.test(err.message)
-              ? 'Сервер забороняє перенаправлення портів (AllowTcpForwarding no у sshd_config) або порт недоступний'
+              ? tr().main.tunnel.forwardingDenied
               : err.message
-            toast('error', `Тунель до ${remoteHost}:${remotePort} не працює`, hint)
+            toast('error', tr().main.tunnel.failed(remoteHost, remotePort), hint)
           }
           return
         }

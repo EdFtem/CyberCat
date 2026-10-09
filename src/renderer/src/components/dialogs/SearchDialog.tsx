@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { FilePen, FolderOpen, Search } from 'lucide-react'
 import { useApp, paneTarget, type PaneId } from '@/store/app'
 import { pathLib } from '@/lib/paths'
-import { formatBytes, formatDate, countLabel } from '@/lib/format'
+import { formatBytes, formatDate } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import { FileIcon } from '@/lib/fileIcons'
 import type { SearchHit, SearchResponse } from '@shared/types'
 import { Button, Checkbox, Field, IconButton, Modal, Spinner } from '../ui'
 
 export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pane: PaneId; close: () => void }) {
+  const t = useT()
   const paneState = useApp((s) => s.ui[sessionId]?.panes[pane])
   const navigate = useApp((s) => s.navigate)
   const setPane = useApp((s) => s.setPane)
@@ -69,7 +71,7 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
 
   return (
     <Modal
-      title={pane === 'local' ? 'Пошук на комп’ютері' : 'Пошук на сервері'}
+      title={pane === 'local' ? t.search.titleLocal : t.search.titleRemote}
       width={820}
       onClose={close}
       footer={
@@ -77,15 +79,15 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
           <span className="mr-auto text-[12px] text-dim">
             {res && (
               <>
-                {countLabel(res.hits.length, 'збіг', 'збіги', 'збігів')}
-                {res.truncated && ' · показано перші, уточніть запит'}
-                {res.method === 'walk' && pane !== 'local' && ' · через SFTP'}
+                {t.search.matches(res.hits.length)}
+                {res.truncated && ` · ${t.search.truncated}`}
+                {res.method === 'walk' && pane !== 'local' && ` · ${t.search.viaSftp}`}
               </>
             )}
           </span>
-          <Button onClick={close}>Закрити</Button>
+          <Button onClick={close}>{t.common.close}</Button>
           <Button variant="primary" icon={busy ? <Spinner size={13} /> : <Search size={14} />} onClick={() => void run()} disabled={!canRun}>
-            Шукати
+            {t.search.run}
           </Button>
         </>
       }
@@ -98,18 +100,18 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
         }}
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Назва файлу" hint="Підрядок або шаблон з * і ?">
+          <Field label={t.search.name} hint={t.search.nameHint}>
             <input className="input input-mono" value={name} onChange={(e) => setName(e.target.value)} placeholder="*.conf" autoFocus spellCheck={false} />
           </Field>
-          <Field label="Текст у вмісті" hint={pane === 'local' ? 'Файли до 4 МБ' : 'Через grep, якщо є shell'}>
+          <Field label={t.search.content} hint={pane === 'local' ? t.search.contentHintLocal : t.search.contentHintRemote}>
             <input className="input" value={content} onChange={(e) => setContent(e.target.value)} placeholder="listen 443" spellCheck={false} />
           </Field>
         </div>
         <div className="flex items-end gap-3">
-          <Field label="Де шукати" className="flex-1">
+          <Field label={t.search.root} className="flex-1">
             <input className="input input-mono" value={root} onChange={(e) => setRoot(e.target.value)} spellCheck={false} />
           </Field>
-          <Checkbox className="mb-2" checked={caseSensitive} onChange={setCaseSensitive} label="Враховувати регістр" />
+          <Checkbox className="mb-2" checked={caseSensitive} onChange={setCaseSensitive} label={t.search.caseSensitive} />
         </div>
         <button type="submit" className="hidden" />
       </form>
@@ -123,8 +125,8 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
             <Spinner size={22} />
           </div>
         )}
-        {!busy && res && res.hits.length === 0 && <div className="p-6 text-center text-[12.5px] text-muted">Нічого не знайдено</div>}
-        {!busy && !res && <div className="p-6 text-center text-[12.5px] text-dim">Введіть назву або текст і натисніть Enter</div>}
+        {!busy && res && res.hits.length === 0 && <div className="p-6 text-center text-[12.5px] text-muted">{t.search.nothingFound}</div>}
+        {!busy && !res && <div className="p-6 text-center text-[12.5px] text-dim">{t.search.hint}</div>}
         {!busy &&
           res?.hits.map((hit) => (
             <div key={hit.entry.path} className="group flex items-center gap-3 px-3 py-1.5 border-b border-border/60 last:border-b-0 hover:bg-surface-3" onDoubleClick={() => open(hit)}>
@@ -142,14 +144,14 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
                 )}
               </div>
               <span className="text-[11.5px] text-dim tabular-nums shrink-0 w-[150px] text-right">
-                {hit.entry.isDir ? 'тека' : formatBytes(hit.entry.size)}
+                {hit.entry.isDir ? t.common.folder : formatBytes(hit.entry.size)}
                 {hit.entry.mtime ? ` · ${formatDate(hit.entry.mtime)}` : ''}
               </span>
               <div className="flex gap-0.5 opacity-0 group-hover:opacity-100">
-                <IconButton title="Показати у панелі" size={26} onClick={() => void reveal(hit)}>
+                <IconButton title={t.search.reveal} size={26} onClick={() => void reveal(hit)}>
                   <FolderOpen size={14} />
                 </IconButton>
-                <IconButton title={hit.entry.isDir ? 'Перейти' : 'Відкрити у редакторі'} size={26} onClick={() => open(hit)}>
+                <IconButton title={hit.entry.isDir ? t.search.goTo : t.search.openInEditor} size={26} onClick={() => open(hit)}>
                   <FilePen size={14} />
                 </IconButton>
               </div>

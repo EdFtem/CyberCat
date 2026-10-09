@@ -4,7 +4,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'path'
 import type { Profile, SshConfigHost } from '@shared/types'
 import { profiles } from '../store/profiles'
 
-/** Один блок Host із ~/.ssh/config. implicit = опції до першого Host */
+/** One Host block from ~/.ssh/config. implicit = options before the first Host */
 export interface SshConfigBlock {
   patterns: string[]
   options: Map<string, string[]>
@@ -25,7 +25,7 @@ function currentUser(): string {
   }
 }
 
-/** Підстановка токенів %d %h %r %u %n %% як у ssh_config */
+/** Expand the %d %h %r %u %n %% tokens the way ssh_config does */
 function expandTokens(value: string, ctx: { host: string; user: string; alias: string }): string {
   return value.replace(/%([dhrun%])/g, (_m, t: string) => {
     switch (t) {
@@ -44,7 +44,7 @@ function expandTokens(value: string, ctx: { host: string; user: string; alias: s
   })
 }
 
-/** Розбиття аргументів з урахуванням лапок */
+/** Split arguments, honoring quotes */
 export function splitArgs(value: string): string[] {
   const out: string[] = []
   const re = /"([^"]*)"|(\S+)/g
@@ -58,7 +58,7 @@ export function globToRegExp(pattern: string, caseSensitive = false): RegExp {
   return new RegExp(`^${esc}$`, caseSensitive ? '' : 'i')
 }
 
-/** Правила ssh: будь-який заперечний шаблон, що збігся, виключає; інакше потрібен хоч один позитивний збіг */
+/** ssh rules: any matching negated pattern excludes; otherwise at least one positive match is required */
 export function matchesPatterns(patterns: string[], name: string): boolean {
   let matched = false
   for (const p of patterns) {
@@ -86,7 +86,7 @@ export function parseSshConfigText(text: string): SshConfigBlock[] {
       continue
     }
     if (key === 'match') {
-      // Блоки Match не підтримуємо: їх умови залежать від середовища виконання ssh
+      // Match blocks are not supported: their conditions depend on the ssh runtime environment
       current = null
       continue
     }
@@ -115,7 +115,7 @@ async function expandIncludeGlob(token: string): Promise<string[]> {
   }
 }
 
-/** Прочитати ~/.ssh/config разом з Include; порядок блоків зберігається */
+/** Read ~/.ssh/config together with Include; block order is preserved */
 export async function loadSshConfig(file = join(homedir(), '.ssh', 'config'), seen = new Set<string>()): Promise<SshConfigBlock[]> {
   const abs = resolve(expandTilde(file))
   if (seen.has(abs) || !existsSync(abs)) return []
@@ -147,7 +147,7 @@ export async function loadSshConfig(file = join(homedir(), '.ssh', 'config'), se
   return out
 }
 
-/** Ефективні опції для імені: перше значення виграє, IdentityFile накопичується */
+/** Effective options for a name: the first value wins, IdentityFile accumulates */
 export function effectiveOptions(blocks: SshConfigBlock[], name: string): Map<string, string[]> {
   const eff = new Map<string, string[]>()
   for (const b of blocks) {
@@ -199,7 +199,7 @@ export async function listSshConfigHosts(): Promise<SshConfigHost[]> {
   })
 }
 
-/** Опції для довільного імені хоста, навіть якщо блоку немає */
+/** Options for any host name, even if it has no block */
 export async function resolveSshHost(name: string): Promise<SshConfigHost> {
   return hostFromBlocks(await loadSshConfig(), name)
 }

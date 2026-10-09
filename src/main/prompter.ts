@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { broadcast } from './broadcast'
 import { PromptKind, PromptRequest } from '@shared/types'
+import { tr } from './i18n'
 
 interface Pending {
   resolve: (v: unknown) => void
@@ -9,7 +10,7 @@ interface Pending {
 
 const pending = new Map<string, Pending>()
 
-/** Показати діалог у renderer і дочекатися відповіді */
+/** Show a dialog in the renderer and wait for the answer */
 export function prompt<A>(kind: PromptKind, payload: PromptRequest['payload']): Promise<A> {
   const id = randomUUID()
   return new Promise<A>((resolve, reject) => {
@@ -25,9 +26,10 @@ export function answerPrompt(id: string, answer: unknown): void {
   p.resolve(answer)
 }
 
-export function rejectAllPrompts(reason = 'Скасовано'): void {
+export function rejectAllPrompts(reason?: string): void {
+  const message = reason ?? tr().main.app.cancelled
   for (const [id, p] of pending) {
     pending.delete(id)
-    p.reject(new Error(reason))
+    p.reject(new Error(message))
   }
 }

@@ -5,10 +5,12 @@ import { languageFor, monaco } from '@/lib/monaco'
 import { useApp, type EditorDoc } from '@/store/app'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/cn'
+import { useT } from '@/lib/i18n'
 import { Button, IconButton, Spinner } from '../ui'
 import { LogView } from './LogView'
 
 export function EditorView({ sid }: { sid: string }) {
+  const t = useT()
   const docs = useApp((s) => s.ui[sid]?.docs ?? [])
   const activeId = useApp((s) => s.ui[sid]?.activeDocId)
   const setActiveDoc = useApp((s) => s.setActiveDoc)
@@ -42,8 +44,8 @@ export function EditorView({ sid }: { sid: string }) {
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-surface rounded-lg border border-border overflow-hidden">
       <div className="flex items-center h-10 border-b border-border pl-1 pr-2 gap-1">
-        <Button size="sm" variant="ghost" icon={<ArrowLeft size={14} />} onClick={() => setEditorVisible(sid, false)} title="До файлів (Ctrl+E)">
-          Файли
+        <Button size="sm" variant="ghost" icon={<ArrowLeft size={14} />} onClick={() => setEditorVisible(sid, false)} title={t.editor.backToFiles}>
+          {t.editor.files}
         </Button>
         <span className="w-px h-5 bg-border mx-1" />
         <div className="flex items-end gap-0.5 flex-1 min-w-0 h-full overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
@@ -58,16 +60,16 @@ export function EditorView({ sid }: { sid: string }) {
             icon={doc.saving ? <Spinner size={13} /> : <Save size={14} />}
             disabled={!dirty || doc.saving || doc.truncated}
             onClick={() => void saveDoc(sid, doc.id)}
-            title="Зберегти (Ctrl+S)"
+            title={t.editor.saveTitle}
           >
-            Зберегти
+            {t.common.save}
           </Button>
         )}
       </div>
 
       {doc.truncated && (
         <div className="flex items-center gap-2 px-3 h-8 text-[12px] bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-warning border-b border-border">
-          <TriangleAlert size={14} /> Файл відкрито частково (перші 8 МБ). Збереження вимкнено.
+          <TriangleAlert size={14} /> {t.editor.truncated}
         </div>
       )}
 
@@ -111,16 +113,16 @@ export function EditorView({ sid }: { sid: string }) {
         </span>
         <span className="flex-1" />
         {isLog ? (
-          <span>живий перегляд</span>
+          <span>{t.editor.liveView}</span>
         ) : (
           <>
             <span>{formatBytes(doc.size)}</span>
             <span className="uppercase">{doc.encoding}</span>
-            <button type="button" className="hover:text-text" title="Перемкнути тип переносу рядка" onClick={() => toggleEol(sid, doc)}>
+            <button type="button" className="hover:text-text" title={t.editor.toggleEol} onClick={() => toggleEol(sid, doc)}>
               {doc.eol}
             </button>
             <span>{languageFor(doc.name)}</span>
-            {dirty && <span className="text-warning">● змінено</span>}
+            {dirty && <span className="text-warning">● {t.editor.modified}</span>}
           </>
         )}
       </div>
@@ -138,6 +140,7 @@ function toggleEol(sid: string, doc: EditorDoc): void {
 }
 
 function DocTab({ d, active, onClick, onClose }: { d: EditorDoc; active: boolean; onClick: () => void; onClose: () => void }) {
+  const t = useT()
   const dirty = d.kind === 'text' && (d.content !== d.savedContent || d.eol !== d.savedEol)
   return (
     <div
@@ -164,7 +167,7 @@ function DocTab({ d, active, onClick, onClose }: { d: EditorDoc; active: boolean
       )}
       <span className="truncate max-w-[180px]">{d.name}</span>
       <IconButton
-        title="Закрити"
+        title={t.common.close}
         size={18}
         className={cn('-mr-1', !dirty && 'opacity-0 group-hover:opacity-100')}
         onClick={(e) => {

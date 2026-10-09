@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Code2, Eye, EyeOff, FolderOpen } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { formatDateFull } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import type { DockerContainer } from '@shared/types'
 import { Badge, Button, Checkbox, Modal, Spinner } from '../ui'
 
@@ -11,6 +12,7 @@ type Json = any
 const SECRET_RE = /pass|secret|token|key|pwd|credential/i
 
 export function DockerInspectDialog({ sessionId, container, close }: { sessionId: string; container: DockerContainer; close: () => void }) {
+  const t = useT()
   const navigate = useApp((s) => s.navigate)
   const setDockerOpen = useApp((s) => s.setDockerOpen)
   const [data, setData] = useState<Json | null>(null)
@@ -60,10 +62,10 @@ export function DockerInspectDialog({ sessionId, container, close }: { sessionId
       footer={
         <>
           <Button variant="ghost" icon={<Code2 size={14} />} onClick={() => setRaw((r) => !r)} className="mr-auto">
-            {raw ? 'Структуровано' : 'JSON'}
+            {raw ? t.dockerInspect.structured : t.dockerInspect.json}
           </Button>
           <Button variant="primary" onClick={close}>
-            Закрити
+            {t.common.close}
           </Button>
         </>
       }
@@ -79,40 +81,38 @@ export function DockerInspectDialog({ sessionId, container, close }: { sessionId
       )}
       {data && !raw && (
         <div className="space-y-4 max-h-[520px] overflow-auto pr-1">
-          <Section title="Загальне">
+          <Section title={t.dockerInspect.general}>
             <Row k="ID">
               <span className="font-mono select-text">{container.id}</span>
             </Row>
-            <Row k="Стан">
+            <Row k={t.dockerInspect.state}>
               <span className="inline-flex items-center gap-2">
                 <Badge tone={state.Running ? 'success' : state.Paused ? 'warning' : 'neutral'}>{state.Status}</Badge>
                 {state.Health?.Status && <Badge tone={state.Health.Status === 'healthy' ? 'success' : 'danger'}>{state.Health.Status}</Badge>}
-                {typeof state.ExitCode === 'number' && !state.Running && <span className="text-dim">код виходу {state.ExitCode}</span>}
+                {typeof state.ExitCode === 'number' && !state.Running && <span className="text-dim">{t.dockerInspect.exitCode(state.ExitCode)}</span>}
               </span>
             </Row>
-            <Row k="Запущено">{state.StartedAt && !state.StartedAt.startsWith('0001') ? formatDateFull(Date.parse(state.StartedAt)) : '—'}</Row>
-            <Row k="Створено">{data.Created ? formatDateFull(Date.parse(data.Created)) : '—'}</Row>
-            <Row k="Команда">
+            <Row k={t.dockerInspect.started}>{state.StartedAt && !state.StartedAt.startsWith('0001') ? formatDateFull(Date.parse(state.StartedAt)) : '—'}</Row>
+            <Row k={t.dockerInspect.created}>{data.Created ? formatDateFull(Date.parse(data.Created)) : '—'}</Row>
+            <Row k={t.dockerInspect.command}>
               <span className="font-mono text-[12px] select-text break-all">{[data.Path, ...(data.Args ?? [])].filter(Boolean).join(' ')}</span>
             </Row>
-            <Row k="Рестарти">
-              {data.RestartCount ?? 0} · політика {host.RestartPolicy?.Name || 'no'}
-            </Row>
-            {config.WorkingDir && <Row k="Робоча тека">{config.WorkingDir}</Row>}
-            {config.User && <Row k="Користувач">{config.User}</Row>}
+            <Row k={t.dockerInspect.restarts}>{t.dockerInspect.restartsValue(data.RestartCount ?? 0, host.RestartPolicy?.Name || 'no')}</Row>
+            {config.WorkingDir && <Row k={t.dockerInspect.workingDir}>{config.WorkingDir}</Row>}
+            {config.User && <Row k={t.dockerInspect.user}>{config.User}</Row>}
           </Section>
 
-          <Section title="Порти">
-            {Object.keys(ports).length === 0 && <div className="text-dim text-[12.5px]">Немає</div>}
+          <Section title={t.dockerInspect.ports}>
+            {Object.keys(ports).length === 0 && <div className="text-dim text-[12.5px]">{t.dockerInspect.none}</div>}
             {Object.entries(ports).map(([cport, bindings]) => (
               <Row key={cport} k={cport}>
-                {bindings && bindings.length ? bindings.map((b: Json) => `${b.HostIp || '0.0.0.0'}:${b.HostPort}`).join(', ') : <span className="text-dim">не опубліковано</span>}
+                {bindings && bindings.length ? bindings.map((b: Json) => `${b.HostIp || '0.0.0.0'}:${b.HostPort}`).join(', ') : <span className="text-dim">{t.dockerInspect.notPublished}</span>}
               </Row>
             ))}
           </Section>
 
-          <Section title="Монтування">
-            {mounts.length === 0 && <div className="text-dim text-[12.5px]">Немає</div>}
+          <Section title={t.dockerInspect.mounts}>
+            {mounts.length === 0 && <div className="text-dim text-[12.5px]">{t.dockerInspect.none}</div>}
             {mounts.map((m: Json, i: number) => (
               <div key={i} className="flex items-center gap-2 text-[12.5px] py-1 border-b border-border/50 last:border-b-0">
                 <Badge tone={m.Type === 'volume' ? 'accent' : 'neutral'}>{m.Type}</Badge>
@@ -125,29 +125,29 @@ export function DockerInspectDialog({ sessionId, container, close }: { sessionId
                 </span>
                 <span className="text-dim text-[11px]">{m.RW ? 'rw' : 'ro'}</span>
                 {m.Source && (
-                  <Button size="sm" variant="ghost" icon={<FolderOpen size={13} />} onClick={() => void openOnHost(m.Source)} title="Відкрити теку на хості у панелі">
-                    На хості
+                  <Button size="sm" variant="ghost" icon={<FolderOpen size={13} />} onClick={() => void openOnHost(m.Source)} title={t.dockerInspect.openOnHostTitle}>
+                    {t.dockerInspect.openOnHost}
                   </Button>
                 )}
               </div>
             ))}
           </Section>
 
-          <Section title="Мережі">
+          <Section title={t.dockerInspect.networks}>
             {Object.entries(net.Networks ?? {}).map(([name, n]: [string, Json]) => (
               <Row key={name} k={name}>
                 <span className="font-mono">{n.IPAddress || '—'}</span>
-                {n.Gateway && <span className="text-dim"> · шлюз {n.Gateway}</span>}
+                {n.Gateway && <span className="text-dim"> · {t.dockerInspect.gateway(n.Gateway)}</span>}
                 {n.Aliases?.length ? <span className="text-dim"> · {n.Aliases.join(', ')}</span> : null}
               </Row>
             ))}
           </Section>
 
           <Section
-            title="Середовище"
-            right={<Checkbox checked={showSecrets} onChange={setShowSecrets} label={<span className="inline-flex items-center gap-1 text-[12px]">{showSecrets ? <EyeOff size={12} /> : <Eye size={12} />} показувати секрети</span>} />}
+            title={t.dockerInspect.environment}
+            right={<Checkbox checked={showSecrets} onChange={setShowSecrets} label={<span className="inline-flex items-center gap-1 text-[12px]">{showSecrets ? <EyeOff size={12} /> : <Eye size={12} />} {t.dockerInspect.showSecrets}</span>} />}
           >
-            {env.length === 0 && <div className="text-dim text-[12.5px]">Немає</div>}
+            {env.length === 0 && <div className="text-dim text-[12.5px]">{t.dockerInspect.none}</div>}
             <div className="font-mono text-[12px] space-y-0.5">
               {env.map((e: string, i: number) => {
                 const idx = e.indexOf('=')
@@ -163,8 +163,8 @@ export function DockerInspectDialog({ sessionId, container, close }: { sessionId
             </div>
           </Section>
 
-          <Section title="Мітки">
-            {Object.keys(labels).length === 0 && <div className="text-dim text-[12.5px]">Немає</div>}
+          <Section title={t.dockerInspect.labels}>
+            {Object.keys(labels).length === 0 && <div className="text-dim text-[12.5px]">{t.dockerInspect.none}</div>}
             <div className="font-mono text-[11.5px] space-y-0.5">
               {Object.entries(labels).map(([k, v]) => (
                 <div key={k} className="truncate select-text" title={`${k}=${v}`}>

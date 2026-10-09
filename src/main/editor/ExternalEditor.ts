@@ -9,6 +9,7 @@ import { bus } from '../bus'
 import { sessions } from '../ssh/SessionManager'
 import { RemoteFs } from '../fs/RemoteFs'
 import { settings } from '../store/settings'
+import { tr } from '../i18n'
 import type { ExternalEdit } from '@shared/types'
 
 const MAX_EXTERNAL_BYTES = 200 * 1024 * 1024
@@ -30,7 +31,7 @@ function launchEditor(command: string, file: string): void {
   const quoted = `"${file}"`
   const line = cmd.includes('%f') ? cmd.replace(/%f/g, quoted) : `${cmd} ${quoted}`
   const child = spawn(line, { shell: true, detached: true, stdio: 'ignore', windowsHide: false })
-  child.on('error', (e) => toast('error', 'Не вдалося запустити редактор', e.message))
+  child.on('error', (e) => toast('error', tr().main.editor.launchFailed, e.message))
   child.unref()
 }
 
@@ -83,7 +84,7 @@ class ExternalEditorService {
 
     try {
       const st = await remote.stat(remotePath)
-      if (st.size > MAX_EXTERNAL_BYTES) throw new Error('Файл завеликий для редагування')
+      if (st.size > MAX_EXTERNAL_BYTES) throw new Error(tr().main.editor.tooLarge)
       const { data } = await remote.readFile(remotePath)
       await fsp.writeFile(localPath, data)
       const lst = await fsp.stat(localPath)
@@ -137,7 +138,7 @@ class ExternalEditorService {
     } catch (e) {
       edit.status = 'error'
       edit.error = e instanceof Error ? e.message : String(e)
-      toast('error', `Не вдалося завантажити ${edit.name}`, edit.error)
+      toast('error', tr().main.editor.uploadFailed(edit.name), edit.error)
     } finally {
       edit.busy = false
       this.emit()

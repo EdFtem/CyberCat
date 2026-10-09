@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, CornerDownRight, FolderOpen } from 'lucide-react'
 import { useApp, paneTarget, otherPane, type PaneId, type SortKey } from '@/store/app'
 import { ops, selectedEntries } from '@/lib/ops'
 import { formatBytes, formatDate, modeToString } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import { FileIcon } from '@/lib/fileIcons'
 import { pathLib } from '@/lib/paths'
 import { cn } from '@/lib/cn'
@@ -12,7 +13,7 @@ import { Spinner, EmptyState } from '../ui'
 const ROW = 30
 const OVERSCAN = 8
 
-/** Поточне внутрішнє перетягування (між панелями) */
+/** Current internal drag (between panes) */
 let currentDrag: { sid: string; pane: PaneId; entries: FileEntry[] } | null = null
 export function getCurrentDrag(): typeof currentDrag {
   return currentDrag
@@ -60,6 +61,7 @@ export function FileList({
   pane: PaneId
   onContextMenu: (e: React.MouseEvent, entry: FileEntry | null) => void
 }) {
+  const t = useT()
   const paneState = useApp((s) => s.ui[sid]?.panes[pane])
   const setPane = useApp((s) => s.setPane)
   const setActivePane = useApp((s) => s.setActivePane)
@@ -263,7 +265,7 @@ export function FileList({
       else ops.mkdir(sid, pane)
       return
     }
-    // Швидкий пошук за першими літерами
+    // Type-ahead: jump to the first entry starting with the typed letters
     if (!ctrl && !e.altKey && e.key.length === 1) {
       const now = Date.now()
       const ta = typeahead.current
@@ -321,7 +323,7 @@ export function FileList({
     currentDrag = null
     if (d) {
       if (d.sid === sid && d.pane === pane) {
-        // Переміщення всередині тієї ж панелі
+        // Move within the same pane
         const lib = pathLib(target)
         const errors: string[] = []
         for (const src of d.entries) {
@@ -331,7 +333,7 @@ export function FileList({
             errors.push(`${src.name}: ${err instanceof Error ? err.message : String(err)}`)
           }
         }
-        if (errors.length) useApp.getState().pushToast({ kind: 'error', title: 'Не все вдалося перемістити', message: errors.join('\n') })
+        if (errors.length) useApp.getState().pushToast({ kind: 'error', title: t.ops.moveSomeFailed, message: errors.join('\n') })
         void refresh(sid, pane)
       } else {
         ops.transfer(sid, d.pane, d.entries, entry.path)
@@ -370,13 +372,13 @@ export function FileList({
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="file-row !h-7 border-b border-border !rounded-none mx-1" style={{ gridTemplateColumns: gridCols }}>
-        <Header k="name">Ім’я</Header>
+        <Header k="name">{t.pane.colName}</Header>
         <Header k="size" align="right">
-          Розмір
+          {t.pane.colSize}
         </Header>
-        <Header k="mtime">Змінено</Header>
-        <Header k="mode">Права</Header>
-        {isRemote && <span className="text-[11.5px] uppercase tracking-wide text-dim">Власник</span>}
+        <Header k="mtime">{t.pane.colModified}</Header>
+        <Header k="mode">{t.pane.colPermissions}</Header>
+        {isRemote && <span className="text-[11.5px] uppercase tracking-wide text-dim">{t.pane.colOwner}</span>}
       </div>
 
       <div
@@ -404,13 +406,13 @@ export function FileList({
           </div>
         )}
         {!paneState.loading && paneState.error && (
-          <EmptyState icon={<FolderOpen size={32} />} title="Не вдалося відкрити теку" description={paneState.error} />
+          <EmptyState icon={<FolderOpen size={32} />} title={t.pane.openFolderFailed} description={paneState.error} />
         )}
         {!paneState.loading && !paneState.error && total === 0 && (
           <EmptyState
             icon={<FolderOpen size={32} />}
-            title={paneState.filter ? 'Нічого не знайдено' : 'Тека порожня'}
-            description={paneState.filter ? `За фільтром «${paneState.filter}» немає збігів` : !showHidden && paneState.entries.length ? 'Приховані файли вимкнено (Ctrl+H)' : undefined}
+            title={paneState.filter ? t.pane.noMatches : t.pane.folderEmpty}
+            description={paneState.filter ? t.pane.filterNoMatches(paneState.filter) : !showHidden && paneState.entries.length ? t.pane.hiddenFilesOff : undefined}
           />
         )}
         <div style={{ height: startIdx * ROW }} />
@@ -485,6 +487,8 @@ function Row({
   onDragLeave: () => void
   onDrop: (e: React.DragEvent) => void
 }) {
+  // Subscribe to the language so sizes and dates re-render when it changes
+  useT()
   return (
     <div
       className={cn('file-row', selected && 'selected', cursor && 'cursor', dropTarget && 'drop-target')}

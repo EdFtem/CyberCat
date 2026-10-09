@@ -1,6 +1,6 @@
-// Запускає smoke-тест UI з чистим середовищем і окремою текою даних
+// Runs the UI smoke test with a clean environment and a separate data folder
 const { spawnSync } = require('child_process')
-const { mkdtempSync, mkdirSync } = require('fs')
+const { mkdtempSync, mkdirSync, writeFileSync } = require('fs')
 const { tmpdir } = require('os')
 const path = require('path')
 
@@ -11,6 +11,10 @@ env.CYBERCAT_DEBUG_SCRIPT = path.resolve('tests/ui-smoke.cjs')
 env.CYBERCAT_SHOTS = path.resolve('out/shots')
 env.CYBERCAT_DEBUG = '1'
 mkdirSync(env.CYBERCAT_SHOTS, { recursive: true })
+
+// Interface language for the run: English by default, CC_UI_LANG=uk for Ukrainian
+env.CC_UI_LANG = process.env.CC_UI_LANG || 'en'
+writeFileSync(path.join(env.CYBERCAT_USER_DATA, 'settings.json'), JSON.stringify({ language: env.CC_UI_LANG }))
 
 const electron = require('electron')
 const r = spawnSync(electron, ['.'], { env, stdio: 'inherit' })

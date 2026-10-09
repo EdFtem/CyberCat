@@ -4,6 +4,7 @@ import type { SFTPWrapper } from 'ssh2'
 import type { DiskUsage, FileEntry } from '@shared/types'
 import type { Session } from '../ssh/Session'
 import { FsAdapter, permBits } from './types'
+import { tr } from '../i18n'
 import {
   sftpChmod,
   sftpClose,
@@ -43,7 +44,7 @@ function parseLongname(longname: string | undefined): { owner?: string; group?: 
   return {}
 }
 
-/** Паралельне читання всього вмісту дескриптора */
+/** Parallel read of the whole handle contents */
 export async function readFromHandle(
   sftp: SFTPWrapper,
   handle: Buffer,
@@ -61,7 +62,7 @@ export async function readFromHandle(
       let got = 0
       while (got < want) {
         const n = await sftpRead(sftp, handle, buf, off + got, want - got, off + got)
-        if (n === 0) throw new Error('Несподіваний кінець файлу під час читання')
+        if (n === 0) throw new Error(tr().main.fs.unexpectedEof)
         got += n
       }
     }
@@ -70,7 +71,7 @@ export async function readFromHandle(
   return { data: buf, truncated: size > len }
 }
 
-/** Паралельний запис буфера у дескриптор */
+/** Parallel write of a buffer to a handle */
 export async function writeToHandle(sftp: SFTPWrapper, handle: Buffer, data: Buffer): Promise<void> {
   let next = 0
   const worker = async (): Promise<void> => {
@@ -142,7 +143,7 @@ export class RemoteFs implements FsAdapter {
             e.isDir = st.isDirectory()
             e.size = e.isDir ? 0 : st.size
           } catch {
-            /* обірване посилання */
+            /* broken link */
           }
           try {
             e.linkTarget = await sftpReadlink(sftp, e.path)
@@ -182,7 +183,7 @@ export class RemoteFs implements FsAdapter {
       try {
         const st = await sftpStat(this.sftp, p)
         if (st.isDirectory()) return
-        throw new Error(`Шлях існує, але це не тека: ${p}`)
+        throw new Error(tr().main.fs.notAFolder(p))
       } catch (statErr) {
         if (sftpCode(statErr) === SFTP_NO_SUCH_FILE && posix.dirname(p) !== p) {
           await this.ensureDir(posix.dirname(p))
@@ -199,15 +200,15 @@ export class RemoteFs implements FsAdapter {
   }
 
   async copy(src: string, dest: string): Promise<void> {
-    if (!this.session.info.hasShell) throw new Error('Копіювання на сервері потребує shell')
+    if (!this.session.info.hasShell) throw new Error(tr().main.fs.copyNeedsShell)
     try {
       await sftpLstat(this.sftp, dest)
-      throw new Error(`Файл або тека вже існує: ${dest}`)
+      throw new Error(tr().main.fs.alreadyExists(dest))
     } catch (e) {
       if (sftpCode(e) !== SFTP_NO_SUCH_FILE) throw e
     }
     const r = await this.session.exec(`cp -a -- ${shq(src)} ${shq(dest)}`, 10 * 60_000)
-    if (r.code !== 0) throw new Error(r.stderr.trim() || `cp завершився з кодом ${r.code}`)
+    if (r.code !== 0) throw new Error(r.stderr.trim() || tr().main.exec.exitCode('cp', r.code))
   }
 
   async rmdir(p: string): Promise<void> {
@@ -221,7 +222,7 @@ export class RemoteFs implements FsAdapter {
     }
     if (this.session.info.hasShell) {
       const r = await this.session.exec(`rm -rf -- ${shq(p)}`, 10 * 60_000)
-      if (r.code !== 0) throw new Error(r.stderr.trim() || `rm завершився з кодом ${r.code}`)
+      if (r.code !== 0) throw new Error(r.stderr.trim() || tr().main.exec.exitCode('rm', r.code))
       return
     }
     await this.removeRecursive(p)
@@ -246,7 +247,7 @@ export class RemoteFs implements FsAdapter {
     }
     if (this.session.info.hasShell) {
       const r = await this.session.exec(`chmod -R ${mode.toString(8)} -- ${shq(p)}`, 10 * 60_000)
-      if (r.code !== 0) throw new Error(r.stderr.trim() || `chmod завершився з кодом ${r.code}`)
+      if (r.code !== 0) throw new Error(r.stderr.trim() || tr().main.exec.exitCode('chmod', r.code))
       return
     }
     await this.chmodRecursive(p, mode)
@@ -317,7 +318,7 @@ export class RemoteFs implements FsAdapter {
     try {
       origMode = permBits((await sftpLstat(sftp, p)).mode)
     } catch {
-      /* новий файл */
+      /* new file */
     }
     try {
       await this.writeWhole(tmp, data)
@@ -330,7 +331,7 @@ export class RemoteFs implements FsAdapter {
       }
     } catch {
       await sftpUnlink(sftp, tmp).catch(() => {})
-      // Запасний варіант: запис на місці, якщо в теці немає прав на створення файлів
+      // Fallback: write in place if the folder does not allow creating files
       await this.writeWhole(p, data)
     }
   }

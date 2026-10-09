@@ -1,4 +1,5 @@
-// Спільні типи для main, preload та renderer
+// Types shared by main, preload and renderer
+import type { Lang } from './i18n'
 
 export type AuthMethod = 'password' | 'key' | 'agent'
 
@@ -10,10 +11,10 @@ export interface Profile {
   username: string
   auth: AuthMethod
   keyPath?: string
-  /** Проміжні хости у форматі OpenSSH: [user@]host[:port], кілька через кому */
+  /** Jump hosts in OpenSSH format: [user@]host[:port], comma-separated */
   proxyJump?: string
   savePassword: boolean
-  /** Обчислюється у main: чи є збережений пароль */
+  /** Computed in main: whether a saved password exists */
   hasPassword?: boolean
   color?: string
   group?: string
@@ -31,14 +32,14 @@ export interface FileEntry {
   isDir: boolean
   isSymlink: boolean
   size: number
-  /** мс від епохи */
+  /** ms since epoch */
   mtime: number
-  /** лише біти прав, 0..0o7777 */
+  /** permission bits only, 0..0o7777 */
   mode: number
   owner?: string
   group?: string
   linkTarget?: string
-  /** для Windows-дисків у локальній панелі */
+  /** for Windows drives in the local pane */
   isDrive?: boolean
 }
 
@@ -60,9 +61,9 @@ export interface SessionInfo {
   error?: string
   homeDir?: string
   hasShell: boolean
-  /** Активний sudo-режим: команди виконуються з правами root */
+  /** sudo mode is on: commands run as root */
   sudo?: boolean
-  /** Файловий канал також від root (знайдено sftp-server) */
+  /** The file channel runs as root too (sftp-server was found) */
   sudoFiles?: boolean
   color?: string
   startRemotePath?: string
@@ -112,7 +113,7 @@ export interface TransferRequest {
   sources: TransferSource[]
   destDir: string
   policy?: OverwritePolicy
-  /** Переміщення: джерело видаляється після успішної передачі */
+  /** Move: the source is deleted after a successful transfer */
   move?: boolean
 }
 
@@ -171,25 +172,28 @@ export interface ExternalEdit {
 export interface Bookmark {
   id: string
   label: string
-  /** 'local' або ключ сервера user@host:port */
+  /** 'local' or the server key user@host:port */
   target: string
   path: string
 }
 
 export interface AppSettings {
   theme: 'dark' | 'light'
+  /** Interface language */
+  language: Lang
   externalEditor: string
   showHidden: boolean
   confirmDelete: boolean
   agentPath: string
   transferConcurrency: number
-  /** Користувацькі команди, по одній на рядок: Назва = команда з %f %n %d */
+  /** Custom commands, one per line: Name = command with %f %n %d */
   customCommands: string
   bookmarks: Bookmark[]
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
+  language: 'en',
   externalEditor: '',
   showHidden: false,
   confirmDelete: true,
@@ -199,7 +203,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   bookmarks: []
 }
 
-// Запити з main до renderer (діалоги)
+// Requests from main to the renderer (dialogs)
 export type PromptKind = 'hostkey' | 'auth' | 'password' | 'passphrase' | 'overwrite'
 
 export interface HostKeyPrompt {
@@ -231,6 +235,8 @@ export interface PasswordPrompt {
   username: string
   canSave: boolean
   reason?: string
+  /** The previous password was rejected: the reason is shown as an error */
+  retry?: boolean
 }
 export interface PasswordAnswer {
   password: string | null
@@ -267,10 +273,10 @@ export interface PromptRequest {
 
 export interface ConnectRequest {
   profileId?: string
-  /** разове підключення без профілю */
+  /** one-off connection without a profile */
   adHoc?: Omit<Profile, 'id' | 'createdAt'>
   password?: string
-  /** перепідключення існуючої сесії */
+  /** reconnect an existing session */
   sessionId?: string
 }
 
@@ -286,7 +292,7 @@ export interface Toast {
   message?: string
 }
 
-// ---- Імпорт ~/.ssh/config
+// ---- ~/.ssh/config import
 export interface SshConfigHost {
   alias: string
   host: string
@@ -294,11 +300,11 @@ export interface SshConfigHost {
   user?: string
   identityFile?: string
   proxyJump?: string
-  /** Чи вже є профіль з такою ж адресою та користувачем */
+  /** Whether a profile with the same address and user already exists */
   exists?: boolean
 }
 
-// ---- Живий перегляд логів
+// ---- Live log view
 export interface TailStartRequest {
   target: Target
   path: string
@@ -307,7 +313,7 @@ export interface TailStartRequest {
 export interface TailData {
   tailId: string
   data: string
-  /** Порядковий номер фрагмента; фрагменти з seq <= snapshot.seq уже є у знімку */
+  /** Chunk sequence number; chunks with seq <= snapshot.seq are already in the snapshot */
   seq: number
 }
 export interface TailSnapshot {
@@ -319,7 +325,7 @@ export interface TailExit {
   error?: string
 }
 
-// ---- Пошук
+// ---- Search
 export interface SearchRequest {
   target: Target
   root: string
@@ -340,7 +346,7 @@ export interface SearchResponse {
   warning?: string
 }
 
-// ---- Порівняння та синхронізація тек
+// ---- Folder comparison and sync
 export interface CompareRequest {
   sessionId: string
   localDir: string
@@ -448,7 +454,7 @@ export interface DockerDiskUsage {
   reclaimable: string
 }
 
-// ---- Тунелі портів
+// ---- Port tunnels
 export interface Tunnel {
   id: string
   sessionId: string

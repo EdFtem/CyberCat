@@ -3,6 +3,7 @@ import { Session } from './Session'
 import { broadcast } from '../broadcast'
 import { bus } from '../bus'
 import { profiles } from '../store/profiles'
+import { tr } from '../i18n'
 import type { ConnectRequest, Profile, SessionInfo } from '@shared/types'
 
 class SessionManager {
@@ -18,7 +19,7 @@ class SessionManager {
 
   require(id: string): Session {
     const s = this.sessions.get(id)
-    if (!s) throw new Error('Сесію не знайдено')
+    if (!s) throw new Error(tr().main.session.notFound)
     return s
   }
 
@@ -32,13 +33,13 @@ class SessionManager {
     let profile: Profile
     if (req.profileId) {
       const p = profiles.get(req.profileId)
-      if (!p) throw new Error('Профіль не знайдено')
+      if (!p) throw new Error(tr().main.session.profileNotFound)
       profile = p
       profiles.touch(p.id)
     } else if (req.adHoc) {
       profile = { ...req.adHoc, id: '', createdAt: Date.now() }
     } else {
-      throw new Error('Не вказано профіль підключення')
+      throw new Error(tr().main.session.noProfile)
     }
 
     const id = randomUUID()
@@ -54,7 +55,7 @@ class SessionManager {
     this.sessions.set(id, session)
     broadcast('session:update', session.info)
 
-    // Сесія лишається у списку зі статусом error, щоб користувач бачив причину
+    // The session stays in the list with the error status so the user can see why
     await session.connect(req.password)
     return session.info
   }

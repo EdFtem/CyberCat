@@ -7,7 +7,7 @@ interface ProfilesFile {
   profiles: Profile[]
 }
 interface SecretsFile {
-  /** profileId -> base64(зашифровано safeStorage) */
+  /** profileId -> base64(encrypted with safeStorage) */
   [id: string]: string
 }
 
@@ -38,7 +38,7 @@ export const profiles = {
   },
 
   /**
-   * password: undefined = не чіпати, null = видалити, string = зберегти
+   * password: undefined = leave as is, null = delete, string = save
    */
   save(input: Profile, password?: string | null): Profile {
     const now = Date.now()
@@ -83,7 +83,7 @@ export const profiles = {
       if (!canEncrypt()) return undefined
       return safeStorage.decryptString(Buffer.from(enc, 'base64'))
     } catch (e) {
-      console.error('[profiles] не вдалося розшифрувати пароль', e)
+      console.error('[profiles] failed to decrypt password', e)
       return undefined
     }
   },

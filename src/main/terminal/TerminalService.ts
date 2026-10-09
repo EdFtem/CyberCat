@@ -32,12 +32,12 @@ class TerminalService {
       broadcast('terminal:exit', { termId: id })
     })
     stream.on('error', () => {
-      /* обробляється через close */
+      /* handled via close */
     })
 
     if (cwd || command) {
-      // Чекаємо на запрошення оболонки, щоб команда не задвоїлась у виводі.
-      // Пробіл на початку не додає команду в історію bash з HISTCONTROL=ignorespace
+      // Wait for the shell prompt so the command does not show up twice in the output.
+      // A leading space keeps the command out of bash history with HISTCONTROL=ignorespace
       const cd = ` ${[cwd ? `cd ${shq(cwd)}` : '', command ?? ''].filter(Boolean).join(' && ')}\n`
       let sent = false
       const send = (): void => {

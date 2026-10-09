@@ -4,8 +4,10 @@ import { useApp } from '@/store/app'
 import { cn } from '@/lib/cn'
 import { IconButton, StatusDot, Spinner } from './ui'
 import { formatTime } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 
 export function TitleBar() {
+  const t = useT()
   const tabs = useApp((s) => s.tabs)
   const sessions = useApp((s) => s.sessions)
   const activeTab = useApp((s) => s.activeTab)
@@ -41,9 +43,9 @@ export function TitleBar() {
       </div>
 
       <nav className="flex items-end gap-1 flex-1 min-w-0 h-full overflow-x-auto no-drag" style={{ scrollbarWidth: 'none' }}>
-        <Tab active={activeTab === 'home'} onClick={() => setActiveTab('home')} title="Підключення">
+        <Tab active={activeTab === 'home'} onClick={() => setActiveTab('home')} title={t.titleBar.connections}>
           <House size={14} />
-          <span>Підключення</span>
+          <span>{t.titleBar.connections}</span>
         </Tab>
         {tabs.map((id) => {
           const s = sessions[id]
@@ -59,14 +61,14 @@ export function TitleBar() {
                   e.stopPropagation()
                   void closeTab(id)
                 }}
-                title="Закрити сесію"
+                title={t.titleBar.closeSession}
               >
                 <X size={12} />
               </button>
             </Tab>
           )
         })}
-        <IconButton title="Нове підключення" onClick={() => setActiveTab('home')} size={26} className="mb-[7px] ml-1">
+        <IconButton title={t.titleBar.newConnection} onClick={() => setActiveTab('home')} size={26} className="mb-[7px] ml-1">
           <Plus size={15} />
         </IconButton>
       </nav>
@@ -74,7 +76,7 @@ export function TitleBar() {
       <div className="flex items-center gap-1 pl-2 no-drag">
         <div className="relative">
           <IconButton
-            title="Зовнішнє редагування"
+            title={t.titleBar.externalEdits}
             active={editsOpen}
             onClick={() => setEditsOpen((v) => !v)}
             disabled={!extedits.length}
@@ -86,7 +88,7 @@ export function TitleBar() {
         </div>
         {tunnels.length > 0 && (
           <div className="relative">
-            <IconButton title="Тунелі портів" active={tunnelOpen} onClick={() => setTunnelOpen((v) => !v)}>
+            <IconButton title={t.titleBar.tunnels} active={tunnelOpen} onClick={() => setTunnelOpen((v) => !v)}>
               <Globe size={16} />
               <Dot count={tunnels.length} tone="accent" />
             </IconButton>
@@ -95,21 +97,21 @@ export function TitleBar() {
         )}
         {watches.length > 0 && (
           <div className="relative">
-            <IconButton title="Стеження за теками" active={watchOpen} onClick={() => setWatchOpen((v) => !v)}>
+            <IconButton title={t.titleBar.watches} active={watchOpen} onClick={() => setWatchOpen((v) => !v)}>
               <Eye size={16} />
               <Dot count={watches.length} tone={watches.some((w) => w.status === 'error') ? 'danger' : 'accent'} />
             </IconButton>
             {watchOpen && <WatchMenu onClose={() => setWatchOpen(false)} />}
           </div>
         )}
-        <IconButton title="Передачі" active={transfersOpen} onClick={() => setTransfersOpen(!transfersOpen)}>
+        <IconButton title={t.titleBar.transfers} active={transfersOpen} onClick={() => setTransfersOpen(!transfersOpen)}>
           <ArrowDownUp size={16} />
           {transfers.active > 0 && <Dot count={transfers.active} tone="accent" />}
         </IconButton>
-        <IconButton title={theme === 'dark' ? 'Світла тема' : 'Темна тема'} onClick={() => void updateSettings({ theme: theme === 'dark' ? 'light' : 'dark' })}>
+        <IconButton title={theme === 'dark' ? t.titleBar.lightTheme : t.titleBar.darkTheme} onClick={() => void updateSettings({ theme: theme === 'dark' ? 'light' : 'dark' })}>
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </IconButton>
-        <IconButton title="Налаштування (Ctrl+,)" onClick={() => openDialog({ kind: 'settings' })}>
+        <IconButton title={t.titleBar.settings} onClick={() => openDialog({ kind: 'settings' })}>
           <Settings size={16} />
         </IconButton>
       </div>
@@ -160,27 +162,28 @@ function Tab({
 }
 
 function TunnelMenu({ onClose }: { onClose: () => void }) {
+  const t = useT()
   const tunnels = useApp((s) => s.tunnels)
   const sessions = useApp((s) => s.sessions)
   return (
     <>
       <div className="fixed inset-0 z-40" onMouseDown={onClose} />
       <div className="absolute right-0 top-9 z-50 w-[380px] card p-2" style={{ boxShadow: 'var(--shadow)' }}>
-        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-dim">Тунелі портів через SSH</div>
-        {tunnels.map((t) => (
-          <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-2">
+        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-dim">{t.titleBar.tunnelsHeading}</div>
+        {tunnels.map((tun) => (
+          <div key={tun.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-2">
             <div className="min-w-0 flex-1">
               <div className="text-[12.5px] font-mono truncate">
-                localhost:{t.localPort} → {t.remoteHost}:{t.remotePort}
+                localhost:{tun.localPort} → {tun.remoteHost}:{tun.remotePort}
               </div>
               <div className="text-[11.5px] text-dim truncate">
-                {sessions[t.sessionId]?.name ?? 'сесія'} · з’єднань: {t.connections}
+                {sessions[tun.sessionId]?.name ?? t.common.session} · {t.titleBar.tunnelConnections(tun.connections)}
               </div>
             </div>
-            <IconButton title="Відкрити у браузері" size={26} onClick={() => void window.api.app.openExternal(`http://localhost:${t.localPort}`)}>
+            <IconButton title={t.titleBar.openInBrowser} size={26} onClick={() => void window.api.app.openExternal(`http://localhost:${tun.localPort}`)}>
               <ExternalLink size={14} />
             </IconButton>
-            <IconButton title="Закрити тунель" size={26} danger onClick={() => void window.api.tunnel.stop(t.id)}>
+            <IconButton title={t.titleBar.closeTunnel} size={26} danger onClick={() => void window.api.tunnel.stop(tun.id)}>
               <X size={14} />
             </IconButton>
           </div>
@@ -191,13 +194,14 @@ function TunnelMenu({ onClose }: { onClose: () => void }) {
 }
 
 function WatchMenu({ onClose }: { onClose: () => void }) {
+  const t = useT()
   const watches = useApp((s) => s.watches)
   const sessions = useApp((s) => s.sessions)
   return (
     <>
       <div className="fixed inset-0 z-40" onMouseDown={onClose} />
       <div className="absolute right-0 top-9 z-50 w-[400px] card p-2" style={{ boxShadow: 'var(--shadow)' }}>
-        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-dim">Теки в режимі стеження</div>
+        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-dim">{t.titleBar.watchesHeading}</div>
         {watches.map((w) => (
           <div key={w.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-2">
             <div className="min-w-0 flex-1">
@@ -205,13 +209,13 @@ function WatchMenu({ onClose }: { onClose: () => void }) {
                 {w.localDir}
               </div>
               <div className="text-[11.5px] text-dim truncate" title={w.remoteDir}>
-                → {sessions[w.sessionId]?.name ?? 'сесія'}: {w.remoteDir}
+                → {sessions[w.sessionId]?.name ?? t.common.session}: {w.remoteDir}
               </div>
               <div className="text-[11px] text-dim">
-                {w.status === 'error' ? <span className="text-danger">{w.error}</span> : w.events ? `Відвантажено змін: ${w.events}, остання о ${formatTime(w.lastEvent ?? Date.now())}` : 'Очікує змін у теці'}
+                {w.status === 'error' ? <span className="text-danger">{w.error}</span> : w.events ? t.titleBar.watchUploaded(w.events, formatTime(w.lastEvent ?? Date.now())) : t.titleBar.watchIdle}
               </div>
             </div>
-            <IconButton title="Зупинити стеження" size={26} danger onClick={() => void window.api.watch.stop(w.id)}>
+            <IconButton title={t.titleBar.stopWatching} size={26} danger onClick={() => void window.api.watch.stop(w.id)}>
               <X size={14} />
             </IconButton>
           </div>
@@ -222,14 +226,15 @@ function WatchMenu({ onClose }: { onClose: () => void }) {
 }
 
 function ExternalEditsMenu({ onClose }: { onClose: () => void }) {
+  const t = useT()
   const extedits = useApp((s) => s.extedits)
   const sessions = useApp((s) => s.sessions)
   return (
     <>
       <div className="fixed inset-0 z-40" onMouseDown={onClose} />
       <div className="absolute right-0 top-9 z-50 w-[360px] card p-2" style={{ boxShadow: 'var(--shadow)' }}>
-        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-dim">Файли у зовнішньому редакторі</div>
-        {extedits.length === 0 && <div className="px-2 py-3 text-muted text-[12.5px]">Немає відкритих файлів</div>}
+        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-dim">{t.titleBar.editsHeading}</div>
+        {extedits.length === 0 && <div className="px-2 py-3 text-muted text-[12.5px]">{t.titleBar.noOpenFiles}</div>}
         {extedits.map((e) => (
           <div key={e.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-2">
             <div className="min-w-0 flex-1">
@@ -239,20 +244,20 @@ function ExternalEditsMenu({ onClose }: { onClose: () => void }) {
                 {e.status === 'error' && <CircleAlert size={13} className="text-danger" />}
               </div>
               <div className="text-[11.5px] text-dim truncate" title={e.remotePath}>
-                {sessions[e.sessionId]?.name ?? 'сесія'} · {e.remotePath}
+                {sessions[e.sessionId]?.name ?? t.common.session} · {e.remotePath}
               </div>
               <div className="text-[11px] text-dim">
                 {e.status === 'error'
                   ? e.error
                   : e.uploads
-                    ? `Завантажено ${e.uploads} раз${e.uploads === 1 ? '' : 'и'}, останній о ${formatTime(e.lastUpload ?? Date.now())}`
-                    : 'Очікує змін у файлі'}
+                    ? t.titleBar.editUploaded(e.uploads, formatTime(e.lastUpload ?? Date.now()))
+                    : t.titleBar.editIdle}
               </div>
             </div>
-            <IconButton title="Завантажити зараз" size={26} onClick={() => void window.api.extedit.uploadNow(e.id)}>
+            <IconButton title={t.titleBar.uploadNow} size={26} onClick={() => void window.api.extedit.uploadNow(e.id)}>
               <Upload size={14} />
             </IconButton>
-            <IconButton title="Завершити редагування" size={26} danger onClick={() => void window.api.extedit.close(e.id)}>
+            <IconButton title={t.titleBar.finishEditing} size={26} danger onClick={() => void window.api.extedit.close(e.id)}>
               <X size={14} />
             </IconButton>
           </div>
