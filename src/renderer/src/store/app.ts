@@ -13,7 +13,8 @@ import {
   type SessionInfo,
   type Target,
   type Toast,
-  type TransferSummary
+  type TransferSummary,
+  type WatchInfo
 } from '@shared/types'
 import { pathLib, setLocalPlatform } from '@/lib/paths'
 
@@ -95,7 +96,17 @@ export type Dialog =
   | { kind: 'settings' }
   | { kind: 'sshImport' }
   | { kind: 'search'; sessionId: string; pane: PaneId }
+  | { kind: 'compare'; sessionId: string }
+  | { kind: 'massRename'; sessionId: string; pane: PaneId; entries: FileEntry[] }
+  | { kind: 'command'; sessionId: string; title: string; cmd: string }
   | { kind: 'about' }
+
+export interface ClipboardState {
+  sid: string
+  pane: PaneId
+  entries: FileEntry[]
+  cut: boolean
+}
 
 interface NavigateOptions {
   history?: boolean
@@ -119,6 +130,8 @@ interface State {
   prompts: PromptRequest[]
   dialog: Dialog | null
   connecting: boolean
+  clipboard: ClipboardState | null
+  watches: WatchInfo[]
 }
 
 interface Actions {
@@ -158,6 +171,8 @@ interface Actions {
   openDialog(d: Dialog): void
   closeDialog(): void
   setTransfersOpen(open: boolean): void
+  setClipboard(c: ClipboardState | null): void
+  toggleSudo(sid: string): Promise<void>
 }
 
 export type AppStore = State & Actions
@@ -226,6 +241,8 @@ export const useApp = create<AppStore>((set, get) => ({
   prompts: [],
   dialog: null,
   connecting: false,
+  clipboard: null,
+  watches: [],
 
   async boot() {
     if (get().booted) return
@@ -233,15 +250,17 @@ export const useApp = create<AppStore>((set, get) => ({
     setLocalPlatform(info.platform)
     const settings = await api.settings.get()
     applyTheme(settings.theme)
-    const [profiles, sessionList, transfers, extedits] = await Promise.all([
+    const [profiles, sessionList, transfers, extedits, watches] = await Promise.all([
       api.profiles.list(),
       api.sessions.list(),
       api.transfer.list(),
-      api.extedit.list()
+      api.extedit.list(),
+      api.watch.list().catch(() => [])
     ])
     const sessions: Record<string, SessionInfo> = {}
     for (const s of sessionList) sessions[s.id] = s
-    set({ booted: true, info, settings, profiles, sessions, transfers, extedits })
+    set({ booted: true, info, settings, profiles, sessions, transfers, extedits, watches })
+    api.on.watchUpdate((list) => set({ watches: list }))
 
     api.on.sessionUpdate((s) => onSessionUpdate(s))
     api.on.sessionReconnected((id) => {
@@ -713,6 +732,27 @@ export const useApp = create<AppStore>((set, get) => ({
 
   setTransfersOpen(open) {
     set({ transfersOpen: open })
+  },
+
+  setClipboard(c) {
+    set({ clipboard: c })
+  },
+
+  async toggleSudo(sid) {
+    const s = get().sessions[sid]
+    if (!s) return
+    try {
+      const info = await api.sessions.sudo(sid, !s.sudo)
+      set((st) => ({ sessions: { ...st.sessions, [sid]: info } }))
+      void get().refresh(sid, 'remote')
+      get().pushToast({
+        kind: info.sudo ? 'warning' : 'info',
+        title: info.sudo ? 'sudo-режим увімкнено' : 'sudo-режим вимкнено',
+        message: info.sudo ? 'Операції на сервері виконуються з правами root. Будьте обережні.' : undefined
+      })
+    } catch (e) {
+      get().pushToast({ kind: 'error', title: 'sudo', message: errMsg(e) })
+    }
   }
 }))
 

@@ -36,6 +36,25 @@ function sha256(buf: Buffer): string {
 async function wait(ms: number): Promise<void> {
   await new Promise((r) => setTimeout(r, ms))
 }
+async function untilAsync(fn: () => Promise<boolean>, timeoutMs: number, label: string): Promise<void> {
+  const start = Date.now()
+  while (!(await fn())) {
+    if (Date.now() - start > timeoutMs) throw new Error(`timeout: ${label}`)
+    await wait(150)
+  }
+}
+async function untilDone(check: () => boolean, timeoutMs: number, label: string): Promise<void> {
+  await until(check, timeoutMs, label)
+}
+async function exists(p: string): Promise<boolean> {
+  try {
+    await fsp.access(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function until(fn: () => boolean, timeoutMs: number, label: string): Promise<void> {
   const start = Date.now()
   while (!fn()) {
@@ -350,6 +369,115 @@ Host *
   } else {
     console.log('  - пропущено: задайте CC_TEST_JUMP=cat@127.0.0.1:2223 і CC_TEST_TARGET=<ip контейнера>:2222')
   }
+
+  console.log('\n[6e] sudo-режим')
+  const sudoProbe = await session.exec('sudo -n true 2>&1')
+  if (/not found|No such file/i.test(sudoProbe.stdout + sudoProbe.stderr)) {
+    console.log('  - пропущено: на сервері немає sudo')
+  } else {
+    await session.enableSudo(PASS)
+    ok(session.sudoActive && session.info.sudo === true, 'sudo увімкнено')
+    const rootDir = `/root/cc-sudo-${randomBytes(3).toString('hex')}`
+    await remote.mkdir(rootDir)
+    await remote.writeFileAtomic(`${rootDir}/x.txt`, Buffer.from('root'))
+    const made = await remote.list(rootDir)
+    ok(made.length === 1 && made[0].owner === 'root', `файл у /root створено від root (власник ${made[0]?.owner})`)
+    const whoami = await session.exec('id -u')
+    eq(whoami.stdout.trim(), '0', 'exec у sudo-режимі виконується від root')
+    await remote.remove(rootDir, true)
+    let goneRoot = false
+    try {
+      await remote.stat(rootDir)
+    } catch {
+      goneRoot = true
+    }
+    ok(goneRoot, 'rm -rf через sudo')
+    session.disableSudo()
+    ok(!session.sudoActive && session.info.sudo === false, 'sudo вимкнено')
+    eq((await session.exec('id -un')).stdout.trim(), USER, 'exec знову від звичайного користувача')
+    let denied = false
+    try {
+      await remote.mkdir(`/root/cc-denied-${randomBytes(2).toString('hex')}`)
+    } catch {
+      denied = true
+    }
+    ok(denied, 'без sudo запис у /root заборонено')
+  }
+
+  console.log('\n[6f] Переміщення, копіювання, порівняння, стеження')
+  const { localFs } = await import('../src/main/fs/LocalFs')
+  const { runCompare } = await import('../src/main/sync/CompareService')
+  const { watches } = await import('../src/main/sync/WatchService')
+  const allFinished = (): boolean => transfers.summary().items.every((i) => ['done', 'error', 'skipped', 'cancelled'].includes(i.status))
+
+  const moveSrc = join(localSrc, 'movedir')
+  await fsp.mkdir(join(moveSrc, 'sub'), { recursive: true })
+  await fsp.writeFile(join(moveSrc, 'a.txt'), 'a')
+  await fsp.writeFile(join(moveSrc, 'sub', 'b.txt'), 'b')
+  transfers.clearFinished()
+  await transfers.enqueue({ sessionId: info.id, direction: 'upload', sources: [{ path: moveSrc, name: 'movedir', isDir: true }], destDir: `${base}/moved`, move: true })
+  await untilDone(allFinished, 60_000, 'move done')
+  await wait(500)
+  ok(transfers.summary().items.every((i) => i.status === 'done'), 'переміщення: усі файли передано')
+  eq((await remote.stat(`${base}/moved/movedir/sub/b.txt`)).size, 1, 'файл є на сервері після переміщення')
+  ok(!(await exists(moveSrc)), 'локальне джерело видалено разом із порожніми теками')
+
+  await remote.copy(`${base}/moved/movedir`, `${base}/moved/copy`)
+  eq((await remote.stat(`${base}/moved/copy/sub/b.txt`)).size, 1, 'копіювання на сервері через cp -a')
+  await localFs.copy(join(localSrc, 'nested'), join(localSrc, 'nested-copy'))
+  ok(await exists(join(localSrc, 'nested-copy', 'deep', 'mid.bin')), 'локальне рекурсивне копіювання')
+
+  const cmpLocal = await fsp.mkdtemp(join(tmpdir(), 'cc-cmp-'))
+  const cmpRemote = `${base}/cmp`
+  await remote.mkdir(cmpRemote)
+  await fsp.writeFile(join(cmpLocal, 'same.txt'), 'same content')
+  await remote.writeFileAtomic(`${cmpRemote}/same.txt`, Buffer.from('same content'))
+  await fsp.writeFile(join(cmpLocal, 'only-local.txt'), 'L')
+  await remote.writeFileAtomic(`${cmpRemote}/only-remote.txt`, Buffer.from('R'))
+  await fsp.writeFile(join(cmpLocal, 'diff.txt'), 'aaaa')
+  await remote.writeFileAtomic(`${cmpRemote}/diff.txt`, Buffer.from('bbbb'))
+  await fsp.mkdir(join(cmpLocal, 'sub'))
+  await fsp.writeFile(join(cmpLocal, 'sub', 'deep.txt'), 'deep')
+  const cmp = await runCompare({ sessionId: info.id, localDir: cmpLocal, remoteDir: cmpRemote, byHash: true })
+  ok(cmp.hashed, 'хешування увімкнено')
+  eq(cmp.counts.onlyLocal, 3, 'лише локально: only-local.txt, sub, sub/deep.txt')
+  eq(cmp.counts.onlyRemote, 1, 'лише на сервері: only-remote.txt')
+  const diffEntry = cmp.entries.find((e) => e.rel === 'diff.txt')
+  ok(!!diffEntry && diffEntry.status === 'different' && diffEntry.reason === 'hash', 'однаковий розмір, різний вміст виявлено за sha256')
+  eq(cmp.counts.same, 1, 'same.txt збігається за хешем')
+  const cmpSameTime = await runCompare({ sessionId: info.id, localDir: cmpLocal, remoteDir: cmpRemote })
+  ok(!cmpSameTime.entries.some((e) => e.rel === 'diff.txt'), 'без хешу однаковий розмір і дата вважаються збігом')
+  const older = (Date.now() - 60_000) / 1000
+  await fsp.utimes(join(cmpLocal, 'diff.txt'), older, older)
+  const cmpQuick = await runCompare({ sessionId: info.id, localDir: cmpLocal, remoteDir: cmpRemote })
+  const diffQuick = cmpQuick.entries.find((e) => e.rel === 'diff.txt')
+  ok(!!diffQuick && diffQuick.status === 'different' && diffQuick.reason === 'mtime' && diffQuick.newer === 'remote', 'без хешу відмінність за датою, новіший на сервері')
+
+  const w = watches.start(info.id, cmpLocal, cmpRemote)
+  ok(watches.list().some((x) => x.id === w.id), 'стеження запущено')
+  await wait(400)
+  await fsp.writeFile(join(cmpLocal, 'watched.txt'), 'watched!')
+  await untilAsync(async () => {
+    try {
+      return (await remote.stat(`${cmpRemote}/watched.txt`)).size === 8
+    } catch {
+      return false
+    }
+  }, 20_000, 'watch upload')
+  ok(true, 'новий локальний файл автоматично відвантажено')
+  await fsp.mkdir(join(cmpLocal, 'newdir'))
+  await fsp.writeFile(join(cmpLocal, 'newdir', 'inner.txt'), 'inner')
+  await untilAsync(async () => {
+    try {
+      return (await remote.stat(`${cmpRemote}/newdir/inner.txt`)).size === 5
+    } catch {
+      return false
+    }
+  }, 20_000, 'watch nested upload')
+  ok(true, 'файл у новій підтеці відвантажено')
+  watches.stop(w.id)
+  ok(!watches.list().some((x) => x.id === w.id), 'стеження зупинено')
+  await fsp.rm(cmpLocal, { recursive: true, force: true })
 
   console.log('\n[6] Термінал (shell) та видалення')
   const shell = await session.shell(80, 24)

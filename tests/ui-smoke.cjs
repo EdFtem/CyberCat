@@ -159,6 +159,49 @@ module.exports = ({ win, app }) => {
       await escape()
       await sleep(300)
 
+      // sudo-режим: кнопка, діалог пароля, бейдж root
+      await click('button[title^="sudo-режим"]')
+      await sleep(900)
+      await shot('07b-sudo-prompt')
+      await setInput('.fixed.z-50 input[type=password]', PASS)
+      await clickByText('.fixed.z-50 button', 'Продовжити')
+      await sleep(2500)
+      await shot('07c-sudo-active')
+      console.log(`[smoke] sudo badge: ${await js(`!![...document.querySelectorAll('section span')].find((s) => s.textContent.trim() === 'root')`)}`)
+      await click('button[title="Вимкнути sudo-режим"]')
+      await sleep(800)
+
+      // Порівняння тек з маленькою локальною текою
+      const cmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'cc-smoke-cmp-'))
+      fs.writeFileSync(path.join(cmpDir, 'sshd.pid'), '198\n')
+      fs.writeFileSync(path.join(cmpDir, 'local-only.txt'), 'hello')
+      await click('button[title="Порівняти з локальною текою"]')
+      await sleep(600)
+      await setInput('.fixed.z-50 input.input-mono', cmpDir)
+      await clickByText('.fixed.z-50 button', 'Порівняти')
+      await sleep(3000)
+      await shot('07d-compare')
+      console.log(`[smoke] compare rows: ${await js(`document.querySelectorAll('.fixed.z-50 tbody tr').length`)}`)
+      await escape()
+      await sleep(300)
+      fs.rmSync(cmpDir, { recursive: true, force: true })
+
+      // Масове перейменування: виділяємо два рядки і відкриваємо з контекстного меню
+      await js(
+        `(() => { const rows = [...document.querySelectorAll('[id^="filelist-"][id$="-remote"] .file-row')]; const a = rows.find((r) => r.textContent.includes('cybercat-demo.log')); const b = rows.find((r) => r.textContent.includes('sshd.pid')); if (!a || !b) return false; a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); a.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: true })); return true })()`
+      )
+      await sleep(300)
+      await openMenu('sshd.pid')
+      await sleep(400)
+      await clickByText('.fixed.z-\\[71\\] button', 'Масове перейменування')
+      await sleep(600)
+      await setInput('.fixed.z-50 input.input-mono', 'ssh')
+      await sleep(200)
+      await setInput('.fixed.z-50 input.input-mono:nth-of-type(1)', 'ssh')
+      await shot('07e-mass-rename')
+      await escape()
+      await sleep(300)
+
       // Панель передач
       await click('button[title="Передачі"]')
       await sleep(600)

@@ -2,7 +2,7 @@ import { useApp, paneTarget, otherPane, type PaneId, type PaneState } from '@/st
 import { pathLib } from './paths'
 import { looksBinary } from './fileIcons'
 import { countLabel } from './format'
-import type { FileEntry, Toast } from '@shared/types'
+import type { Bookmark, FileEntry, Toast } from '@shared/types'
 
 const api = window.api
 const S = (): ReturnType<typeof useApp.getState> => useApp.getState()
@@ -13,6 +13,37 @@ function errMsg(e: unknown): string {
 
 export function toast(kind: Toast['kind'], title: string, message?: string): void {
   S().pushToast({ kind, title, message })
+}
+
+/** Екранування для POSIX-оболонки */
+export function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`
+}
+
+export interface CustomCommand {
+  name: string
+  cmd: string
+}
+
+/** Рядки виду "Назва = команда", # коментарі */
+export function parseCustomCommands(text: string): CustomCommand[] {
+  const out: CustomCommand[] = []
+  for (const raw of (text || '').split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    const i = line.indexOf('=')
+    if (i <= 0) continue
+    const name = line.slice(0, i).trim()
+    const cmd = line.slice(i + 1).trim()
+    if (name && cmd) out.push({ name, cmd })
+  }
+  return out
+}
+
+export function bookmarkTarget(sid: string, pane: PaneId): string {
+  if (pane === 'local') return 'local'
+  const s = S().sessions[sid]
+  return s ? `${s.username}@${s.host}:${s.port}` : sid
 }
 
 export function selectedEntries(pane: PaneState): FileEntry[] {
@@ -275,6 +306,131 @@ export const ops = {
   tailLog(sid: string, pane: PaneId, entry: FileEntry): void {
     if (entry.isDir) return
     void S().openLog(sid, paneTarget(sid, pane), entry.path)
+  },
+
+  /** F6: перемістити на іншу панель, джерело видаляється після успішної передачі */
+  moveToOtherPane(sid: string, fromPane: PaneId, entries: FileEntry[]): void {
+    const items = entries.filter((e) => !e.isDrive)
+    if (!items.length) return
+    const ui = S().ui[sid]
+    if (!ui) return
+    const dest = ui.panes[otherPane(fromPane)].path
+    if (!dest) return
+    const direction = fromPane === 'local' ? 'upload' : 'download'
+    S().openDialog({
+      kind: 'confirm',
+      title: `Перемістити ${countLabel(items.length, 'елемент', 'елементи', 'елементів')} ${fromPane === 'local' ? 'на сервер' : 'на комп\u2019ютер'}?`,
+      message: `Призначення: ${dest}. Файли-джерела буде видалено після успішної передачі кожного з них.`,
+      okLabel: 'Перемістити',
+      onConfirm: () =>
+        api.transfer
+          .enqueue({
+            sessionId: sid,
+            direction,
+            sources: items.map((e) => ({ path: e.path, name: e.name, isDir: e.isDir })),
+            destDir: dest,
+            move: true
+          })
+          .catch((e) => toast('error', 'Не вдалося почати переміщення', errMsg(e)))
+    })
+  },
+
+  copyToClipboard(sid: string, pane: PaneId, entries: FileEntry[], cut: boolean): void {
+    const items = entries.filter((e) => !e.isDrive)
+    if (!items.length) return
+    S().setClipboard({ sid, pane, entries: items, cut })
+    toast('info', cut ? 'Вирізано' : 'Скопійовано', `${countLabel(items.length, 'елемент', 'елементи', 'елементів')} · Ctrl+V для вставки`)
+  },
+
+  async paste(sid: string, pane: PaneId): Promise<void> {
+    const clip = S().clipboard
+    if (!clip) return
+    if (clip.sid !== sid) {
+      toast('warning', 'Вставка між різними сесіями поки не підтримується')
+      return
+    }
+    const destDir = S().ui[sid]?.panes[pane].path
+    if (!destDir) return
+    if (clip.pane !== pane) {
+      const direction = clip.pane === 'local' ? 'upload' : 'download'
+      await api.transfer
+        .enqueue({
+          sessionId: sid,
+          direction,
+          sources: clip.entries.map((e) => ({ path: e.path, name: e.name, isDir: e.isDir })),
+          destDir,
+          move: clip.cut
+        })
+        .catch((e) => toast('error', 'Не вдалося вставити', errMsg(e)))
+    } else {
+      const target = paneTarget(sid, pane)
+      const lib = pathLib(target)
+      const errors: string[] = []
+      if (clip.cut) {
+        for (const e of clip.entries) {
+          if (lib.dirname(e.path) === destDir) continue
+          try {
+            await api.fs.rename(target, e.path, lib.join(destDir, e.name))
+          } catch (err) {
+            errors.push(`${e.name}: ${errMsg(err)}`)
+          }
+        }
+      } else {
+        try {
+          await api.fs.copy(
+            target,
+            clip.entries.filter((e) => lib.dirname(e.path) !== destDir).map((e) => ({ path: e.path, name: e.name, isDir: e.isDir })),
+            destDir
+          )
+        } catch (err) {
+          errors.push(errMsg(err))
+        }
+      }
+      await S().refresh(sid, pane)
+      if (errors.length) toast('error', 'Не все вдалося вставити', errors.join('\n'))
+    }
+    if (clip.cut) S().setClipboard(null)
+  },
+
+  massRename(sid: string, pane: PaneId, entries: FileEntry[]): void {
+    const items = entries.filter((e) => !e.isDrive)
+    if (!items.length) return
+    S().openDialog({ kind: 'massRename', sessionId: sid, pane, entries: items })
+  },
+
+  compare(sid: string): void {
+    S().openDialog({ kind: 'compare', sessionId: sid })
+  },
+
+  runCustomCommand(sid: string, pane: PaneId, entries: FileEntry[], def: CustomCommand): void {
+    const dir = S().ui[sid]?.panes[pane].path ?? ''
+    const cmd = def.cmd
+      .replace(/%f/g, entries.map((e) => shellQuote(e.path)).join(' '))
+      .replace(/%n/g, entries.map((e) => shellQuote(e.name)).join(' '))
+      .replace(/%d/g, shellQuote(dir))
+    S().openDialog({ kind: 'command', sessionId: sid, title: def.name, cmd: dir ? `cd ${shellQuote(dir)} && ${cmd}` : cmd })
+  },
+
+  bookmarksFor(sid: string, pane: PaneId): Bookmark[] {
+    const key = bookmarkTarget(sid, pane)
+    return S().settings.bookmarks.filter((b) => b.target === key)
+  },
+
+  async toggleBookmark(sid: string, pane: PaneId): Promise<void> {
+    const path = S().ui[sid]?.panes[pane].path
+    if (path === undefined) return
+    const key = bookmarkTarget(sid, pane)
+    const all = S().settings.bookmarks
+    const existing = all.find((b) => b.target === key && b.path === path)
+    const next = existing
+      ? all.filter((b) => b !== existing)
+      : [...all, { id: Math.random().toString(36).slice(2), label: pathLib(paneTarget(sid, pane)).basename(path) || path || 'Цей ПК', target: key, path }]
+    await S().updateSettings({ bookmarks: next })
+    toast('info', existing ? 'Закладку прибрано' : 'Закладку додано', path || 'Цей ПК')
+  },
+
+  async removeBookmark(id: string): Promise<void> {
+    await S().updateSettings({ bookmarks: S().settings.bookmarks.filter((b) => b.id !== id) })
   },
 
   search(sid: string, pane: PaneId): void {

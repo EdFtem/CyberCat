@@ -60,6 +60,16 @@ interface Internal {
   ctrl?: Ctrl
   autoRetry?: boolean
   srcMtime?: number
+  deleteSource?: boolean
+  /** Усі дії над елементом завершено, включно з видаленням джерела */
+  settled?: boolean
+}
+
+interface Batch {
+  srcFs: FsAdapter
+  move: boolean
+  /** Теки-джерела для переміщення, глибші спочатку */
+  dirs: string[]
 }
 
 type BatchDecision = OverwritePolicy | 'cancel'
@@ -69,6 +79,7 @@ class TransferManager {
   private internal = new Map<string, Internal>()
   private batchDecision = new Map<string, BatchDecision>()
   private batchRequested = new Map<string, OverwritePolicy>()
+  private batches = new Map<string, Batch>()
   private running = 0
   private ticker?: NodeJS.Timeout
   private emitTimer?: NodeJS.Timeout
@@ -161,9 +172,29 @@ class TransferManager {
   private push(partial: Omit<TransferItem, 'id' | 'transferred' | 'status' | 'speed'>, batchId: string, srcMtime?: number): void {
     const item: TransferItem = { ...partial, id: randomUUID(), transferred: 0, status: 'queued', speed: 0 }
     this.items.push(item)
-    this.internal.set(item.id, { batchId, srcMtime })
+    this.internal.set(item.id, { batchId, srcMtime, deleteSource: this.batches.get(batchId)?.move })
     this.emit()
     this.schedule()
+  }
+
+  /** Після завершення всіх елементів пакета переміщення прибираємо порожні теки-джерела */
+  private async finishBatch(batchId: string): Promise<void> {
+    const batch = this.batches.get(batchId)
+    if (!batch) return
+    const pending = this.items.some((i) => {
+      const m = this.internal.get(i.id)
+      return m?.batchId === batchId && !m.settled
+    })
+    if (pending) return
+    this.batches.delete(batchId)
+    if (!batch.move) return
+    for (const dir of batch.dirs) {
+      try {
+        await batch.srcFs.rmdir(dir)
+      } catch {
+        /* тека не порожня: щось пропущено або не вдалося */
+      }
+    }
   }
 
   async enqueue(req: TransferRequest): Promise<void> {
@@ -171,6 +202,7 @@ class TransferManager {
     const { srcFs, dstFs } = this.adapters(session, req.direction)
     const batchId = randomUUID()
     if (req.policy && req.policy !== 'ask') this.batchRequested.set(batchId, req.policy)
+    this.batches.set(batchId, { srcFs, move: !!req.move, dirs: [] })
     try {
       await dstFs.ensureDir(req.destDir)
     } catch (e) {
@@ -203,6 +235,7 @@ class TransferManager {
         toast('error', `Не вдалося додати ${src.name}`, e instanceof Error ? e.message : String(e))
       }
     }
+    void this.finishBatch(batchId)
   }
 
   private async expandDir(
@@ -235,6 +268,7 @@ class TransferManager {
         )
       }
     }
+    this.batches.get(batchId)?.dirs.push(srcDir)
   }
 
   private schedule(): void {
@@ -308,6 +342,13 @@ class TransferManager {
       } catch {
         /* не критично */
       }
+      if (meta.deleteSource) {
+        try {
+          await srcFs.remove(item.src, false)
+        } catch (e) {
+          toast('warning', `Не вдалося видалити джерело ${item.name}`, e instanceof Error ? e.message : String(e))
+        }
+      }
     } catch (e) {
       item.status = ctrl.cancelled ? 'cancelled' : 'error'
       if (!ctrl.cancelled) item.error = e instanceof Error ? e.message : String(e)
@@ -316,8 +357,10 @@ class TransferManager {
       item.speed = 0
       meta.ctrl = undefined
       this.running--
+      meta.settled = true
       this.emit()
       this.schedule()
+      void this.finishBatch(meta.batchId)
     }
   }
 
@@ -534,6 +577,8 @@ class TransferManager {
     if (!it) return
     if (it.status === 'error' || it.status === 'cancelled' || it.status === 'skipped') {
       if (it.status === 'skipped') it.resumeFrom = undefined
+      const m = this.internal.get(id)
+      if (m) m.settled = false
       it.status = 'queued'
       it.error = undefined
       it.transferred = it.resumeFrom ?? 0

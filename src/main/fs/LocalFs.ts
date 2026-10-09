@@ -135,9 +135,23 @@ export class LocalFs implements FsAdapter {
     await fsp.rename(from, to)
   }
 
+  async copy(src: string, dest: string): Promise<void> {
+    try {
+      await fsp.access(dest, fsConst.F_OK)
+      throw new Error(`Файл або тека вже існує: ${dest}`)
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+    }
+    await fsp.cp(src, dest, { recursive: true, errorOnExist: true, force: false, preserveTimestamps: true })
+  }
+
   async remove(p: string, isDir: boolean): Promise<void> {
     if (isDir) await fsp.rm(p, { recursive: true, force: false, maxRetries: 2 })
     else await fsp.unlink(p)
+  }
+
+  async rmdir(p: string): Promise<void> {
+    await fsp.rmdir(p)
   }
 
   async chmod(p: string, mode: number, recursive: boolean): Promise<void> {

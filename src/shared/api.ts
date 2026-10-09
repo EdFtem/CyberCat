@@ -1,7 +1,10 @@
 import type {
   AppSettings,
+  CompareRequest,
+  CompareResult,
   ConnectRequest,
   DiskUsage,
+  ExecOutput,
   ExternalEdit,
   FileEntry,
   ListResult,
@@ -20,7 +23,8 @@ import type {
   Target,
   Toast,
   TransferRequest,
-  TransferSummary
+  TransferSummary,
+  WatchInfo
 } from './types'
 
 export type Unsubscribe = () => void
@@ -57,6 +61,8 @@ export interface Api {
     disconnect(id: string): Promise<void>
     remove(id: string): Promise<void>
     list(): Promise<SessionInfo[]>
+    sudo(id: string, enable: boolean): Promise<SessionInfo>
+    exec(id: string, cmd: string): Promise<ExecOutput>
   }
   fs: {
     list(target: Target, path: string): Promise<ListResult>
@@ -64,6 +70,7 @@ export interface Api {
     mkdir(target: Target, path: string): Promise<void>
     createFile(target: Target, path: string): Promise<void>
     rename(target: Target, from: string, to: string): Promise<void>
+    copy(target: Target, items: { path: string; name: string; isDir: boolean }[], destDir: string): Promise<void>
     remove(target: Target, items: { path: string; isDir: boolean }[]): Promise<void>
     chmod(target: Target, paths: string[], mode: number, recursive: boolean): Promise<void>
     home(target: Target): Promise<string>
@@ -112,6 +119,14 @@ export interface Api {
   search: {
     run(req: SearchRequest): Promise<SearchResponse>
   }
+  compare: {
+    run(req: CompareRequest): Promise<CompareResult>
+  }
+  watch: {
+    start(sessionId: string, localDir: string, remoteDir: string): Promise<WatchInfo>
+    stop(id: string): Promise<void>
+    list(): Promise<WatchInfo[]>
+  }
   on: {
     sessionUpdate(cb: (info: SessionInfo) => void): Unsubscribe
     sessionReconnected(cb: (id: string) => void): Unsubscribe
@@ -123,5 +138,6 @@ export interface Api {
     toast(cb: (t: Toast) => void): Unsubscribe
     tailData(cb: (d: TailData) => void): Unsubscribe
     tailExit(cb: (d: TailExit) => void): Unsubscribe
+    watchUpdate(cb: (list: WatchInfo[]) => void): Unsubscribe
   }
 }

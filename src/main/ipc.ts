@@ -13,8 +13,10 @@ import { answerPrompt } from './prompter'
 import { importSshHosts, listSshConfigHosts } from './ssh/sshConfig'
 import { tails } from './tail/TailService'
 import { runSearch } from './search/SearchService'
+import { runCompare } from './sync/CompareService'
+import { watches } from './sync/WatchService'
 import type { AppInfo } from '@shared/api'
-import type { AppSettings, ConnectRequest, Profile, SaveTextRequest, SearchRequest, Target, TransferRequest } from '@shared/types'
+import type { AppSettings, CompareRequest, ConnectRequest, Profile, SaveTextRequest, SearchRequest, Target, TransferRequest } from '@shared/types'
 
 type Handler = (...args: never[]) => unknown
 
@@ -89,6 +91,13 @@ export function registerIpc(): void {
   handle('session:disconnect', (id: string) => sessions.disconnect(id))
   handle('session:remove', (id: string) => sessions.remove(id))
   handle('session:list', () => sessions.list())
+  handle('session:sudo', async (id: string, enable: boolean) => {
+    const s = sessions.require(id)
+    if (enable) await s.enableSudo()
+    else s.disableSudo()
+    return s.info
+  })
+  handle('session:exec', (id: string, cmd: string) => sessions.require(id).exec(cmd, 300_000))
 
   // ---- fs
   handle('fs:list', async (target: Target, path: string) => {
@@ -100,6 +109,18 @@ export function registerIpc(): void {
   handle('fs:mkdir', (target: Target, path: string) => getFs(target).mkdir(path))
   handle('fs:createFile', (target: Target, path: string) => getFs(target).createFile(path))
   handle('fs:rename', (target: Target, from: string, to: string) => getFs(target).rename(from, to))
+  handle('fs:copy', async (target: Target, items: { path: string; name: string; isDir: boolean }[], destDir: string) => {
+    const fs = getFs(target)
+    const errors: string[] = []
+    for (const it of items) {
+      try {
+        await fs.copy(it.path, fs.join(destDir, it.name))
+      } catch (e) {
+        errors.push(`${it.name}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    if (errors.length) throw new Error(errors.join('\n'))
+  })
   handle('fs:remove', async (target: Target, items: { path: string; isDir: boolean }[]) => {
     const fs = getFs(target)
     const errors: string[] = []
@@ -173,4 +194,10 @@ export function registerIpc(): void {
 
   // ---- search
   handle('search:run', (req: SearchRequest) => runSearch(req))
+
+  // ---- compare / watch
+  handle('compare:run', (req: CompareRequest) => runCompare(req))
+  handle('watch:start', (sid: string, l: string, r: string) => watches.start(sid, l, r))
+  handle('watch:stop', (id: string) => watches.stop(id))
+  handle('watch:list', () => watches.list())
 }

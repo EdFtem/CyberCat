@@ -198,6 +198,22 @@ export class RemoteFs implements FsAdapter {
     await sftpRename(this.sftp, from, to)
   }
 
+  async copy(src: string, dest: string): Promise<void> {
+    if (!this.session.info.hasShell) throw new Error('Копіювання на сервері потребує shell')
+    try {
+      await sftpLstat(this.sftp, dest)
+      throw new Error(`Файл або тека вже існує: ${dest}`)
+    } catch (e) {
+      if (sftpCode(e) !== SFTP_NO_SUCH_FILE) throw e
+    }
+    const r = await this.session.exec(`cp -a -- ${shq(src)} ${shq(dest)}`, 10 * 60_000)
+    if (r.code !== 0) throw new Error(r.stderr.trim() || `cp завершився з кодом ${r.code}`)
+  }
+
+  async rmdir(p: string): Promise<void> {
+    await sftpRmdir(this.sftp, p)
+  }
+
   async remove(p: string, isDir: boolean): Promise<void> {
     if (!isDir) {
       await sftpUnlink(this.sftp, p)

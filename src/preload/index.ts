@@ -43,7 +43,9 @@ const api: Api = {
     connect: (req) => call('session:connect', req),
     disconnect: (id) => call('session:disconnect', id),
     remove: (id) => call('session:remove', id),
-    list: () => call('session:list')
+    list: () => call('session:list'),
+    sudo: (id, enable) => call('session:sudo', id, enable),
+    exec: (id, cmd) => call('session:exec', id, cmd)
   },
   fs: {
     list: (t, p) => call('fs:list', t, p),
@@ -51,6 +53,7 @@ const api: Api = {
     mkdir: (t, p) => call('fs:mkdir', t, p),
     createFile: (t, p) => call('fs:createFile', t, p),
     rename: (t, a, b) => call('fs:rename', t, a, b),
+    copy: (t, items, destDir) => call('fs:copy', t, items, destDir),
     remove: (t, items) => call('fs:remove', t, items),
     chmod: (t, paths, mode, recursive) => call('fs:chmod', t, paths, mode, recursive),
     home: (t) => call('fs:home', t),
@@ -99,6 +102,14 @@ const api: Api = {
   search: {
     run: (req) => call('search:run', req)
   },
+  compare: {
+    run: (req) => call('compare:run', req)
+  },
+  watch: {
+    start: (sid, l, r) => call('watch:start', sid, l, r),
+    stop: (id) => call('watch:stop', id),
+    list: () => call('watch:list')
+  },
   on: {
     sessionUpdate: (cb) => on('session:update', cb),
     sessionReconnected: (cb) => on('session:reconnected', cb),
@@ -109,7 +120,8 @@ const api: Api = {
     promptRequest: (cb) => on('prompt:request', cb),
     toast: (cb) => on('toast', cb),
     tailData: (cb) => on('tail:data', cb),
-    tailExit: (cb) => on('tail:exit', cb)
+    tailExit: (cb) => on('tail:exit', cb),
+    watchUpdate: (cb) => on('watch:update', cb)
   }
 }
 

@@ -86,7 +86,7 @@ function PasswordDialog({ p, done }: { p: PasswordPrompt; done: Done }) {
   const submit = (): void => done({ password, save })
   return (
     <Modal
-      title="Введіть пароль"
+      title={p.reason ? 'Пароль sudo' : 'Введіть пароль'}
       subtitle={`${p.username}@${p.host}`}
       width={420}
       onClose={() => done({ password: null, save: false })}
@@ -94,7 +94,7 @@ function PasswordDialog({ p, done }: { p: PasswordPrompt; done: Done }) {
         <>
           <Button onClick={() => done({ password: null, save: false })}>Скасувати</Button>
           <Button variant="primary" onClick={submit} disabled={!password}>
-            Підключитися
+            {p.reason ? 'Продовжити' : 'Підключитися'}
           </Button>
         </>
       }
@@ -106,7 +106,7 @@ function PasswordDialog({ p, done }: { p: PasswordPrompt; done: Done }) {
         }}
         className="space-y-3"
       >
-        {p.reason && <p className="text-[12.5px] text-danger">{p.reason}</p>}
+        {p.reason && <p className={`text-[12.5px] ${/невірний/i.test(p.reason) ? 'text-danger' : 'text-muted'}`}>{p.reason}</p>}
         <Field label="Пароль">
           <div className="relative">
             <Lock size={14} className="absolute left-2.5 top-2.5 text-dim" />

@@ -207,7 +207,8 @@ export function FileList({
         return
       case 'F6':
         e.preventDefault()
-        ops.moveTo(sid, pane, actOn)
+        if (e.shiftKey) ops.moveTo(sid, pane, actOn)
+        else ops.moveToOtherPane(sid, pane, actOn)
         return
       case 'F7':
         e.preventDefault()
@@ -234,6 +235,21 @@ export function FileList({
     if (ctrl && e.shiftKey && e.key.toLowerCase() === 'c') {
       e.preventDefault()
       ops.copyPath(actOn)
+      return
+    }
+    if (ctrl && e.key.toLowerCase() === 'c') {
+      e.preventDefault()
+      ops.copyToClipboard(sid, pane, actOn, false)
+      return
+    }
+    if (ctrl && e.key.toLowerCase() === 'x') {
+      e.preventDefault()
+      ops.copyToClipboard(sid, pane, actOn, true)
+      return
+    }
+    if (ctrl && e.key.toLowerCase() === 'v') {
+      e.preventDefault()
+      void ops.paste(sid, pane)
       return
     }
     if (ctrl && e.key.toLowerCase() === 'h') {

@@ -8,7 +8,7 @@ Graphical SSH/SFTP file manager: dual-pane browser, resumable transfer queue, Mo
 
 ![CyberCat connection manager](docs/screenshot-home.png)
 
-**English summary.** CyberCat is a WinSCP-style client for people who live in SSH all day. Connection profiles support passwords, OpenSSH and PuTTY keys and SSH agents, with passwords stored through the OS keychain and strict host key verification. Transfers run in a queue with pause, cancel, retry and resume from the last committed byte, and they survive reconnects. Files open in Monaco with the original encoding and line endings preserved, saves are atomic and conflicts with server-side edits are detected. Hosts import from `~/.ssh/config` including ProxyJump chains, logs can be followed live with `tail -F`, and files are searchable by name and content. The UI is currently in Ukrainian; localization is on the roadmap. Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
+**English summary.** CyberCat is a WinSCP-style client for people who live in SSH all day. Connection profiles support passwords, OpenSSH and PuTTY keys and SSH agents, with passwords stored through the OS keychain and strict host key verification. Transfers run in a queue with pause, cancel, retry and resume from the last committed byte, and they survive reconnects. Files open in Monaco with the original encoding and line endings preserved, saves are atomic and conflicts with server-side edits are detected. Hosts import from `~/.ssh/config` including ProxyJump chains, logs can be followed live with `tail -F`, and files are searchable by name and content. A sudo mode runs `sftp-server` as root over a second channel, and folders can be compared and synchronized by size, mtime or sha256, with an optional watch mode that uploads local changes as they happen. The UI is currently in Ukrainian; localization is on the roadmap. Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -28,11 +28,20 @@ Graphical SSH/SFTP file manager: dual-pane browser, resumable transfer queue, Mo
 - **ProxyJump**: підключення через один або кілька проміжних хостів, дані для bastion беруться з ssh config.
 - **Живий перегляд логів**: tail -F у pty з підсвіткою рівнів, фільтром, паузою й автопрокруткою; без shell працює через опитування SFTP.
 - **Пошук на сервері**: за назвою через find і за вмістом через grep, з переходом до файлу у панелі або в редактор.
+- **sudo-режим**: окремий SFTP-канал через `sudo sftp-server` і виконання команд від root одним перемикачем, пароль sudo перевіряється заздалегідь, без shell режим недоступний.
+- **Порівняння і синхронізація тек**: за розміром, датою або sha256, напрямок локально → сервер, сервер → локально або «новіше перемагає», дзеркало з видаленням зайвого, попередній перегляд плану.
+- **Стеження за локальною текою**: зміни автоматично відвантажуються на сервер, індикатор у заголовку.
+- **Переміщення і буфер обміну**: F6 переносить на іншу панель із видаленням джерела, Ctrl+C, Ctrl+X, Ctrl+V працюють між панелями і всередині однієї.
+- **Масове перейменування**: знайти і замінити з регулярними виразами або шаблон із {name} {ext} {n} {date}, із попереднім переглядом і перевіркою конфліктів.
+- **Користувацькі команди**: власні команди з плейсхолдерами %f %n %d у контекстному меню сервера, вивід у діалозі.
+- **Закладки** на теки локально і на сервері.
 - **Автоперепідключення** з keepalive, стійка черга передач.
 
 ![Editor](docs/screenshot-editor.png)
 
 ![Live log view](docs/screenshot-logview.png)
+
+![Folder comparison and sync](docs/screenshot-compare.png)
 
 ## Запуск
 
@@ -55,7 +64,9 @@ npm run dist       # пакування (electron-builder, Windows)
 | F3, F4 | Відкрити у редакторі |
 | Shift+F4 | Зовнішній редактор |
 | F5 | Копіювати на іншу панель |
-| F6 | Перемістити |
+| F6 | Перемістити на іншу панель |
+| Shift+F6 | Перемістити в теку… |
+| Ctrl+C, Ctrl+X, Ctrl+V | Копіювати, вирізати, вставити |
 | F7 | Нова тека |
 | F8, Del | Видалити |
 | Ctrl+L | Редагувати шлях |
@@ -96,10 +107,9 @@ tests           e2e-тест бекенду та smoke-тест UI
 
 ## План розвитку
 
-- sudo-режим для редагування системних файлів
-- Порівняння і синхронізація тек
-- Масове перейменування, користувацькі команди, закладки
 - Інсталятор, автооновлення, локалізація інтерфейсу
+- Передача сервер-сервер
+- Швидкий перегляд зображень і PDF
 
 ## Відомі обмеження
 

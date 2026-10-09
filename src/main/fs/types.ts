@@ -16,7 +16,11 @@ export interface FsAdapter {
   /** mkdir без помилки, якщо тека вже існує */
   ensureDir(p: string): Promise<void>
   rename(from: string, to: string): Promise<void>
+  /** Копіювання в межах тієї ж файлової системи (теки рекурсивно) */
+  copy(src: string, dest: string): Promise<void>
   remove(p: string, isDir: boolean): Promise<void>
+  /** Видалити лише порожню теку */
+  rmdir(p: string): Promise<void>
   chmod(p: string, mode: number, recursive: boolean): Promise<void>
   createFile(p: string): Promise<void>
   readFile(p: string, maxBytes?: number): Promise<{ data: Buffer; truncated: boolean }>

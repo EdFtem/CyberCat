@@ -6,6 +6,9 @@ import { formatBytes, formatDateFull, modeToOctal, modeToString, parseOctal, cou
 import { FileIcon } from '@/lib/fileIcons'
 import { SearchDialog } from './SearchDialog'
 import { SshImportDialog } from './SshImportDialog'
+import { CompareDialog } from './CompareDialog'
+import { MassRenameDialog } from './MassRenameDialog'
+import { CommandDialog } from './CommandDialog'
 import type { FileEntry, Target } from '@shared/types'
 
 export function DialogHost() {
@@ -27,6 +30,12 @@ export function DialogHost() {
       return <SshImportDialog close={close} />
     case 'search':
       return <SearchDialog sessionId={dialog.sessionId} pane={dialog.pane} close={close} />
+    case 'compare':
+      return <CompareDialog sessionId={dialog.sessionId} close={close} />
+    case 'massRename':
+      return <MassRenameDialog sessionId={dialog.sessionId} pane={dialog.pane} entries={dialog.entries} close={close} />
+    case 'command':
+      return <CommandDialog sessionId={dialog.sessionId} title={dialog.title} cmd={dialog.cmd} close={close} />
     case 'about':
       return <AboutDialog close={close} />
     default:
@@ -274,6 +283,7 @@ function SettingsDialog({ close }: { close: () => void }) {
   const update = useApp((s) => s.updateSettings)
   const [editor, setEditor] = useState(settings.externalEditor)
   const [agent, setAgent] = useState(settings.agentPath)
+  const [commands, setCommands] = useState(settings.customCommands)
   useEffect(() => setEditor(settings.externalEditor), [settings.externalEditor])
   const platform = useApp((s) => s.info?.platform)
   const agentHint = useMemo(
@@ -344,6 +354,24 @@ function SettingsDialog({ close }: { close: () => void }) {
           <Checkbox checked={settings.showHidden} onChange={(v) => void update({ showHidden: v })} label="Показувати приховані файли" />
           <Checkbox checked={settings.confirmDelete} onChange={(v) => void update({ confirmDelete: v })} label="Підтверджувати видалення" />
         </div>
+        <Field
+          label="Користувацькі команди на сервері"
+          hint={
+            <>
+              По одній на рядок: <span className="font-mono">Назва = команда</span>. Плейсхолдери: <span className="font-mono">%f</span> вибрані файли (повні шляхи), <span className="font-mono">%n</span> лише назви,{' '}
+              <span className="font-mono">%d</span> поточна тека. З'являються у контекстному меню серверної панелі.
+            </>
+          }
+        >
+          <textarea
+            className="input input-mono h-[96px] py-2 resize-y"
+            value={commands}
+            onChange={(e) => setCommands(e.target.value)}
+            onBlur={() => void update({ customCommands: commands })}
+            placeholder={'Розмір тек = du -sh %f\nПрава рекурсивно 644 = chmod -R 644 %f\nПерезапустити nginx = sudo systemctl restart nginx && systemctl status nginx --no-pager'}
+            spellCheck={false}
+          />
+        </Field>
         <div className="pt-2 border-t border-border flex items-center justify-between text-[12px] text-dim">
           <span>Гарячі клавіші: F2 перейменувати · F4 редагувати · F5 копіювати · F7 нова тека · Del видалити · Ctrl+L шлях · Ctrl+` термінал</span>
         </div>

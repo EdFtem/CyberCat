@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowDownUp, Cat, House, Moon, PencilLine, Plus, Settings, Sun, Upload, X, CircleAlert } from 'lucide-react'
+import { ArrowDownUp, Cat, House, Moon, PencilLine, Plus, Settings, Sun, Upload, X, CircleAlert, Eye } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { cn } from '@/lib/cn'
 import { IconButton, StatusDot, Spinner } from './ui'
@@ -20,6 +20,8 @@ export function TitleBar() {
   const openDialog = useApp((s) => s.openDialog)
   const platform = useApp((s) => s.info?.platform)
   const [editsOpen, setEditsOpen] = useState(false)
+  const [watchOpen, setWatchOpen] = useState(false)
+  const watches = useApp((s) => s.watches)
 
   const padRight = platform === 'win32' ? 150 : 12
   const padLeft = platform === 'darwin' ? 80 : 12
@@ -80,6 +82,15 @@ export function TitleBar() {
           </IconButton>
           {editsOpen && <ExternalEditsMenu onClose={() => setEditsOpen(false)} />}
         </div>
+        {watches.length > 0 && (
+          <div className="relative">
+            <IconButton title="Стеження за теками" active={watchOpen} onClick={() => setWatchOpen((v) => !v)}>
+              <Eye size={16} />
+              <Dot count={watches.length} tone={watches.some((w) => w.status === 'error') ? 'danger' : 'accent'} />
+            </IconButton>
+            {watchOpen && <WatchMenu onClose={() => setWatchOpen(false)} />}
+          </div>
+        )}
         <IconButton title="Передачі" active={transfersOpen} onClick={() => setTransfersOpen(!transfersOpen)}>
           <ArrowDownUp size={16} />
           {transfers.active > 0 && <Dot count={transfers.active} tone="accent" />}
@@ -134,6 +145,37 @@ function Tab({
       {color && <span className="absolute left-0 right-0 top-0 h-[2px] rounded-t-lg" style={{ background: color }} />}
       {children}
     </button>
+  )
+}
+
+function WatchMenu({ onClose }: { onClose: () => void }) {
+  const watches = useApp((s) => s.watches)
+  const sessions = useApp((s) => s.sessions)
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onMouseDown={onClose} />
+      <div className="absolute right-0 top-9 z-50 w-[400px] card p-2" style={{ boxShadow: 'var(--shadow)' }}>
+        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-dim">Теки в режимі стеження</div>
+        {watches.map((w) => (
+          <div key={w.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[12.5px] font-mono truncate" title={w.localDir}>
+                {w.localDir}
+              </div>
+              <div className="text-[11.5px] text-dim truncate" title={w.remoteDir}>
+                → {sessions[w.sessionId]?.name ?? 'сесія'}: {w.remoteDir}
+              </div>
+              <div className="text-[11px] text-dim">
+                {w.status === 'error' ? <span className="text-danger">{w.error}</span> : w.events ? `Відвантажено змін: ${w.events}, остання о ${formatTime(w.lastEvent ?? Date.now())}` : 'Очікує змін у теці'}
+              </div>
+            </div>
+            <IconButton title="Зупинити стеження" size={26} danger onClick={() => void window.api.watch.stop(w.id)}>
+              <X size={14} />
+            </IconButton>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
 

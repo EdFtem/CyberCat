@@ -8,7 +8,8 @@ import { profiles } from '../store/profiles'
 import { settings } from '../store/settings'
 import { fingerprint, hostKeys, parseKeyType } from './hostKeys'
 import { resolveSshHost } from './sshConfig'
-import { sftpRealpath } from '../fs/sftpUtil'
+import { openSftpOverExec } from './sftpExec'
+import { sftpRealpath, shq } from '../fs/sftpUtil'
 import type {
   AuthAnswer,
   AuthMethod,
@@ -38,7 +39,23 @@ interface Hop extends Endpoint {
   label: string
 }
 
+interface SudoState {
+  mode: 'nopasswd' | 'password'
+  password?: string
+  sftp?: SFTPWrapper
+  server: string
+}
+
 const MAX_RECONNECT = 3
+const SFTP_SERVER_CANDIDATES = [
+  '/usr/lib/openssh/sftp-server',
+  '/usr/libexec/openssh/sftp-server',
+  '/usr/lib/ssh/sftp-server',
+  '/usr/libexec/sftp-server',
+  '/usr/lib/sftp-server',
+  '/usr/libexec/ssh/sftp-server',
+  '/usr/local/libexec/sftp-server'
+]
 
 /** Розбір ProxyJump: [user@]host[:port], кілька через кому */
 export function parseProxyJump(spec: string): { user?: string; host: string; port?: number }[] {
@@ -59,7 +76,7 @@ export function parseProxyJump(spec: string): { user?: string; host: string; por
     })
 }
 
-/** Одне SSH-з'єднання: клієнт, SFTP-канал, exec та shell, за потреби через ProxyJump */
+/** Одне SSH-з'єднання: клієнт, SFTP-канал, exec та shell, за потреби через ProxyJump і з sudo */
 export class Session extends EventEmitter {
   info: SessionInfo
   client?: Client
@@ -72,6 +89,8 @@ export class Session extends EventEmitter {
   private reconnectTimer?: NodeJS.Timeout
   /** passphrase на час сесії, щоб не питати двічі для одного ключа */
   private passphrases = new Map<string, string>()
+  private sudoState?: SudoState
+  private pendingSudo?: SudoState
 
   constructor(
     public readonly id: string,
@@ -87,14 +106,18 @@ export class Session extends EventEmitter {
       username: profile.username,
       status: 'connecting',
       hasShell: false,
+      sudo: false,
       color: profile.color,
       startRemotePath: profile.remotePath,
       startLocalPath: profile.localPath
     }
   }
 
+  /** Активний SFTP-канал: з правами root у sudo-режимі, інакше звичайний */
   get sftp(): SFTPWrapper {
-    if (!this._sftp || !this.ready) throw new Error('Сесію не підключено')
+    if (!this.ready) throw new Error('Сесію не підключено')
+    if (this.sudoState?.sftp) return this.sudoState.sftp
+    if (!this._sftp) throw new Error('Сесію не підключено')
     return this._sftp
   }
 
@@ -102,8 +125,17 @@ export class Session extends EventEmitter {
     return this.ready && !!this._sftp
   }
 
+  get sudoActive(): boolean {
+    return !!this.sudoState?.sftp
+  }
+
   private setStatus(status: SessionStatus, error?: string): void {
     this.info = { ...this.info, status, error }
+    this.emit('update', this.info)
+  }
+
+  private patchInfo(patch: Partial<SessionInfo>): void {
+    this.info = { ...this.info, ...patch }
     this.emit('update', this.info)
   }
 
@@ -144,7 +176,7 @@ export class Session extends EventEmitter {
       }
 
       try {
-        const r = await this.exec('echo __cybercat_ok__', 8000)
+        const r = await this.execRaw('echo __cybercat_ok__', 8000)
         this.info.hasShell = r.stdout.includes('__cybercat_ok__')
       } catch {
         this.info.hasShell = false
@@ -154,6 +186,14 @@ export class Session extends EventEmitter {
       this.reconnectAttempts = 0
       this.setStatus('connected')
       if (wasReconnect) this.emit('reconnected')
+
+      if (this.pendingSudo) {
+        const saved = this.pendingSudo
+        this.pendingSudo = undefined
+        this.enableSudo(saved.password).catch(() => {
+          /* користувач побачить, що sudo вимкнено */
+        })
+      }
     } catch (e) {
       this.ready = false
       this.closeClient()
@@ -344,8 +384,14 @@ export class Session extends EventEmitter {
     this.ready = false
     this._sftp = undefined
     this.client = undefined
+    if (this.sudoState) {
+      this.pendingSudo = this.sudoState
+      this.sudoState = undefined
+      this.info = { ...this.info, sudo: false }
+    }
     this.endJumpClients()
     if (this.userClosed) {
+      this.pendingSudo = undefined
       this.setStatus('disconnected')
       return
     }
@@ -379,6 +425,12 @@ export class Session extends EventEmitter {
 
   private closeClient(): void {
     try {
+      this.sudoState?.sftp?.end()
+    } catch {
+      /* ignore */
+    }
+    this.sudoState = undefined
+    try {
       this.client?.removeAllListeners('close')
       this.client?.end()
     } catch {
@@ -391,14 +443,105 @@ export class Session extends EventEmitter {
 
   disconnect(): void {
     this.userClosed = true
+    this.pendingSudo = undefined
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.ready = false
     this.closeClient()
+    this.info = { ...this.info, sudo: false }
     this.setStatus('disconnected')
   }
 
-  /** Виконати команду; повертає stdout/stderr/код */
-  exec(cmd: string, timeoutMs = 60_000): Promise<ExecResult> {
+  // ---------------------------------------------------------------- sudo
+
+  /** Увімкнути sudo-режим: окремий SFTP-канал із правами root та обгортка exec */
+  async enableSudo(password?: string): Promise<void> {
+    if (!this.ready || !this.client) throw new Error('Сесію не підключено')
+    if (this.sudoState?.sftp) return
+    if (!this.info.hasShell) throw new Error('sudo-режим потребує доступу до shell на сервері')
+
+    const probe = await this.execRaw('sudo -n true 2>&1', 15_000)
+    const probeText = (probe.stdout + probe.stderr).trim()
+    if (/not found|No such file/i.test(probeText) && /sudo/i.test(probeText)) throw new Error('На сервері немає sudo')
+    if (/not in the sudoers|may not run sudo|not allowed/i.test(probeText)) throw new Error(`Користувачу ${this.profile.username} не дозволено sudo`)
+    if (/requiretty|must have a tty/i.test(probeText)) throw new Error('sudoers вимагає tty (requiretty), sudo-режим недоступний')
+
+    let mode: SudoState['mode'] = probe.code === 0 ? 'nopasswd' : 'password'
+    let pw = password
+    if (mode === 'password') {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (!pw) {
+          const a = await prompt<PasswordAnswer>('password', {
+            host: this.profile.host,
+            username: this.profile.username,
+            canSave: false,
+            reason: attempt ? 'Невірний пароль sudo, спробуйте ще раз' : `Пароль sudo для ${this.profile.username}@${this.profile.host}`
+          })
+          if (a.password == null) throw new Error('sudo скасовано')
+          pw = a.password
+        }
+        const v = await this.execRaw("sudo -S -v -p '' 2>&1", 20_000, pw + '\n')
+        if (v.code === 0) break
+        const text = (v.stdout + v.stderr).trim()
+        if (/not in the sudoers|may not run sudo/i.test(text)) throw new Error(`Користувачу ${this.profile.username} не дозволено sudo`)
+        pw = undefined
+        if (attempt === 2) throw new Error('Невірний пароль sudo')
+      }
+    }
+
+    const found = await this.execRaw(
+      `for p in ${SFTP_SERVER_CANDIDATES.join(' ')}; do [ -x "$p" ] && echo "$p" && break; done`,
+      15_000
+    )
+    const server = found.stdout.trim().split('\n')[0]?.trim()
+    if (!server) throw new Error('На сервері не знайдено sftp-server, sudo-режим недоступний')
+
+    let sftp: SFTPWrapper
+    if (mode === 'nopasswd') {
+      sftp = await openSftpOverExec(this.client, `sudo -n ${server}`)
+    } else {
+      try {
+        // Після sudo -v квиток може діяти і для інших каналів цієї ж сесії
+        sftp = await openSftpOverExec(this.client, `sudo -n ${server}`)
+      } catch {
+        sftp = await openSftpOverExec(this.client, `sudo -S -p '' ${server}`, Buffer.from(`${pw}\n`, 'utf8'))
+      }
+    }
+    sftp.on('error', () => {
+      /* обробляється через close */
+    })
+    sftp.on('close', () => {
+      if (this.sudoState?.sftp === sftp) {
+        this.sudoState = undefined
+        this.patchInfo({ sudo: false })
+      }
+    })
+    this.sudoState = { mode, password: pw, sftp, server }
+    this.patchInfo({ sudo: true })
+  }
+
+  disableSudo(): void {
+    const s = this.sudoState
+    this.sudoState = undefined
+    this.pendingSudo = undefined
+    try {
+      s?.sftp?.end()
+    } catch {
+      /* ignore */
+    }
+    if (this.info.sudo) this.patchInfo({ sudo: false })
+  }
+
+  private wrapSudo(cmd: string): { cmd: string; stdin?: string } {
+    const s = this.sudoState
+    if (!s?.sftp) return { cmd }
+    if (s.mode === 'nopasswd') return { cmd: `sudo -n sh -c ${shq(cmd)}` }
+    return { cmd: `sudo -S -p '' sh -c ${shq(cmd)}`, stdin: `${s.password ?? ''}\n` }
+  }
+
+  // ---------------------------------------------------------------- exec
+
+  /** Низькорівневий exec без sudo-обгортки */
+  private execRaw(cmd: string, timeoutMs = 60_000, stdin?: string): Promise<ExecResult> {
     return new Promise((resolve, reject) => {
       const client = this.client
       if (!client || !this.ready) return reject(new Error('Сесію не підключено'))
@@ -420,8 +563,15 @@ export class Session extends EventEmitter {
           clearTimeout(timer)
           reject(e)
         })
+        if (stdin) stream.write(stdin)
       })
     })
+  }
+
+  /** Виконати команду (у sudo-режимі з правами root); повертає stdout/stderr/код */
+  exec(cmd: string, timeoutMs = 60_000): Promise<ExecResult> {
+    const w = this.wrapSudo(cmd)
+    return this.execRaw(w.cmd, timeoutMs, w.stdin)
   }
 
   /** Запустити команду і повернути потік для довгих процесів (tail -F тощо) */
@@ -429,7 +579,14 @@ export class Session extends EventEmitter {
     return new Promise((resolve, reject) => {
       const client = this.client
       if (!client || !this.ready) return reject(new Error('Сесію не підключено'))
-      client.exec(cmd, opts, (err, stream) => (err ? reject(err) : resolve(stream)))
+      const w = this.wrapSudo(cmd)
+      // У sudo-режимі pty вимикаємо, інакше пароль відлунюється у вивід
+      const options: ExecOptions = w.stdin ? { ...opts, pty: false } : opts
+      client.exec(w.cmd, options, (err, stream) => {
+        if (err) return reject(err)
+        if (w.stdin) stream.write(w.stdin)
+        resolve(stream)
+      })
     })
   }
 

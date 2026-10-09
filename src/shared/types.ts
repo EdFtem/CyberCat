@@ -60,6 +60,8 @@ export interface SessionInfo {
   error?: string
   homeDir?: string
   hasShell: boolean
+  /** Активний sudo-режим: операції виконуються з правами root */
+  sudo?: boolean
   color?: string
   startRemotePath?: string
   startLocalPath?: string
@@ -108,6 +110,8 @@ export interface TransferRequest {
   sources: TransferSource[]
   destDir: string
   policy?: OverwritePolicy
+  /** Переміщення: джерело видаляється після успішної передачі */
+  move?: boolean
 }
 
 export interface TransferSummary {
@@ -162,6 +166,14 @@ export interface ExternalEdit {
   error?: string
 }
 
+export interface Bookmark {
+  id: string
+  label: string
+  /** 'local' або ключ сервера user@host:port */
+  target: string
+  path: string
+}
+
 export interface AppSettings {
   theme: 'dark' | 'light'
   externalEditor: string
@@ -169,6 +181,9 @@ export interface AppSettings {
   confirmDelete: boolean
   agentPath: string
   transferConcurrency: number
+  /** Користувацькі команди, по одній на рядок: Назва = команда з %f %n %d */
+  customCommands: string
+  bookmarks: Bookmark[]
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -177,7 +192,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showHidden: false,
   confirmDelete: true,
   agentPath: '',
-  transferConcurrency: 2
+  transferConcurrency: 2,
+  customCommands: '',
+  bookmarks: []
 }
 
 // Запити з main до renderer (діалоги)
@@ -319,4 +336,48 @@ export interface SearchResponse {
   truncated: boolean
   method: 'shell' | 'walk'
   warning?: string
+}
+
+// ---- Порівняння та синхронізація тек
+export interface CompareRequest {
+  sessionId: string
+  localDir: string
+  remoteDir: string
+  byHash?: boolean
+}
+export interface CompareSide {
+  size: number
+  mtime: number
+}
+export interface CompareEntry {
+  rel: string
+  kind: 'file' | 'dir'
+  status: 'only-local' | 'only-remote' | 'different'
+  reason?: 'size' | 'mtime' | 'hash' | 'type'
+  newer?: 'local' | 'remote'
+  local?: CompareSide
+  remote?: CompareSide
+}
+export interface CompareResult {
+  entries: CompareEntry[]
+  truncated: boolean
+  counts: { onlyLocal: number; onlyRemote: number; different: number; same: number }
+  hashed: boolean
+}
+
+export interface WatchInfo {
+  id: string
+  sessionId: string
+  localDir: string
+  remoteDir: string
+  events: number
+  lastEvent?: number
+  status: 'active' | 'error'
+  error?: string
+}
+
+export interface ExecOutput {
+  stdout: string
+  stderr: string
+  code: number
 }

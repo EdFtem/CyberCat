@@ -10,6 +10,7 @@ import { terminals } from './terminal/TerminalService'
 import { externalEditor } from './editor/ExternalEditor'
 import { transfers } from './transfer/TransferManager'
 import { tails } from './tail/TailService'
+import { watches } from './sync/WatchService'
 import { rejectAllPrompts } from './prompter'
 import { settings } from './store/settings'
 
@@ -102,6 +103,7 @@ app.on('before-quit', (e) => {
   transfers.cancelAll()
   terminals.closeAll()
   tails.stopAll()
+  watches.stopAll()
   externalEditor
     .closeAll()
     .catch(() => {})

@@ -25,14 +25,21 @@ import {
   Upload,
   X,
   ScrollText,
-  FileSearch
+  FileSearch,
+  ShieldAlert,
+  Star,
+  GitCompareArrows,
+  ClipboardPaste,
+  Scissors,
+  Play,
+  TextCursorInput
 } from 'lucide-react'
 import { useApp, paneTarget, type PaneId } from '@/store/app'
-import { ops, selectedEntries } from '@/lib/ops'
+import { ops, selectedEntries, parseCustomCommands } from '@/lib/ops'
 import { countLabel, formatBytes } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import type { FileEntry } from '@shared/types'
-import { IconButton, Spinner } from '../ui'
+import { IconButton, Spinner, Badge } from '../ui'
 import { PathBar } from './PathBar'
 import { FileList, focusPane, getCurrentDrag, useVisibleEntries } from './FileList'
 import { ContextMenu, type MenuItem } from './ContextMenu'
@@ -49,9 +56,15 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
   const goUp = useApp((s) => s.goUp)
   const goHome = useApp((s) => s.goHome)
   const refresh = useApp((s) => s.refresh)
+  const navigate = useApp((s) => s.navigate)
   const visible = useVisibleEntries(sid, pane)
+  const clipboard = useApp((s) => s.clipboard)
+  const customCommandsText = useApp((s) => s.settings.customCommands)
+  const bookmarks = useApp((s) => s.settings.bookmarks)
+  const toggleSudo = useApp((s) => s.toggleSudo)
   const [editRequest, setEditRequest] = useState(0)
   const [menu, setMenu] = useState<{ x: number; y: number; entry: FileEntry | null } | null>(null)
+  const [bookmarkMenu, setBookmarkMenu] = useState<{ x: number; y: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
 
   const isRemote = pane === 'remote'
@@ -62,6 +75,28 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
 
   if (!paneState) return null
 
+  const myBookmarks = ops.bookmarksFor(sid, pane)
+  const isBookmarked = myBookmarks.some((b) => b.path === paneState.path)
+  const customCommands = isRemote && session?.hasShell ? parseCustomCommands(customCommandsText).slice(0, 10) : []
+  const canPaste = !!clipboard && clipboard.sid === sid
+
+  const buildBookmarkMenu = (): MenuItem[] => {
+    const items: MenuItem[] = myBookmarks.map((b) => ({
+      label: b.label,
+      icon: <Star size={14} />,
+      shortcut: b.path.length > 42 ? '…' + b.path.slice(-40) : b.path,
+      checked: b.path === paneState.path,
+      onClick: () => void navigate(sid, pane, b.path)
+    }))
+    if (items.length) items.push({ type: 'separator' })
+    items.push({
+      label: isBookmarked ? 'Прибрати поточну теку із закладок' : 'Додати поточну теку в закладки',
+      icon: <Star size={14} />,
+      onClick: () => void ops.toggleBookmark(sid, pane)
+    })
+    return items
+  }
+
   const buildMenu = (entry: FileEntry | null): MenuItem[] => {
     const cur = paneState
     const actOn = entry ? (selected.some((e) => e.path === entry.path) && selected.length > 1 ? selected : [entry]) : []
@@ -71,8 +106,10 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         { label: 'Нова тека', icon: <FolderPlus size={14} />, shortcut: 'F7', onClick: () => ops.mkdir(sid, pane) },
         { label: 'Новий файл', icon: <FilePlus2 size={14} />, shortcut: 'Ctrl+Shift+N', onClick: () => ops.createFile(sid, pane) },
         { type: 'separator' },
+        { label: 'Вставити', icon: <ClipboardPaste size={14} />, shortcut: 'Ctrl+V', disabled: !canPaste, onClick: () => void ops.paste(sid, pane) },
         { label: 'Оновити', icon: <RefreshCw size={14} />, shortcut: 'Ctrl+R', onClick: () => void refresh(sid, pane) },
         { label: 'Пошук у цій теці…', icon: <FileSearch size={14} />, shortcut: 'Ctrl+Shift+F', onClick: () => ops.search(sid, pane) },
+        ...(isRemote ? [{ label: 'Порівняти з локальною текою…', icon: <GitCompareArrows size={14} />, onClick: () => ops.compare(sid) } as MenuItem] : []),
         { label: 'Показувати приховані', checked: showHidden, shortcut: 'Ctrl+H', onClick: () => void updateSettings({ showHidden: !showHidden }) },
         { type: 'separator' },
         ...(isRemote
@@ -97,14 +134,31 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
       disabled: actOn.some((e) => e.isDrive),
       onClick: () => ops.transfer(sid, pane, actOn)
     })
-    items.push({ label: 'Перемістити…', icon: <FolderInput size={14} />, shortcut: 'F6', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.moveTo(sid, pane, actOn) })
+    items.push({
+      label: isRemote ? 'Перемістити на комп\u2019ютер' : 'Перемістити на сервер',
+      icon: <FolderInput size={14} />,
+      shortcut: 'F6',
+      disabled: actOn.some((e) => e.isDrive),
+      onClick: () => ops.moveToOtherPane(sid, pane, actOn)
+    })
+    items.push({ label: 'Перемістити в теку…', icon: <FolderInput size={14} />, shortcut: 'Shift+F6', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.moveTo(sid, pane, actOn) })
+    items.push({ type: 'separator' })
+    items.push({ label: 'Копіювати', icon: <Copy size={14} />, shortcut: 'Ctrl+C', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.copyToClipboard(sid, pane, actOn, false) })
+    items.push({ label: 'Вирізати', icon: <Scissors size={14} />, shortcut: 'Ctrl+X', disabled: actOn.some((e) => e.isDrive), onClick: () => ops.copyToClipboard(sid, pane, actOn, true) })
+    items.push({ label: 'Вставити', icon: <ClipboardPaste size={14} />, shortcut: 'Ctrl+V', disabled: !canPaste, onClick: () => void ops.paste(sid, pane) })
+    items.push({ type: 'separator' })
     if (!many) items.push({ label: 'Перейменувати', icon: <Pencil size={14} />, shortcut: 'F2', disabled: entry.isDrive, onClick: () => setPane(sid, pane, { renaming: entry.path }) })
+    if (many) items.push({ label: 'Масове перейменування…', icon: <TextCursorInput size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.massRename(sid, pane, actOn) })
     items.push({ label: 'Видалити', icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.deleteEntries(sid, pane, actOn) })
     items.push({ type: 'separator' })
     items.push({ label: 'Права доступу…', icon: <ShieldCheck size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.chmod(sid, pane, actOn) })
     items.push({ label: 'Копіювати шлях', icon: <Copy size={14} />, shortcut: 'Ctrl+Shift+C', onClick: () => ops.copyPath(actOn) })
     if (isRemote && entry.isDir && !many) items.push({ label: 'Відкрити термінал тут', icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, entry.path) })
     if (!many) items.push({ label: 'Властивості', icon: <Info size={14} />, onClick: () => ops.properties(sid, pane, entry) })
+    if (customCommands.length) {
+      items.push({ type: 'separator' })
+      for (const c of customCommands) items.push({ label: c.name, icon: <Play size={14} />, onClick: () => ops.runCustomCommand(sid, pane, actOn, c) })
+    }
     return items
   }
 
@@ -170,6 +224,7 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
           {isRemote ? <Server size={13} /> : <Laptop size={13} />}
           {isRemote ? session?.host ?? 'Сервер' : 'Локально'}
         </span>
+        {isRemote && session?.sudo && <Badge tone="danger">root</Badge>}
         <IconButton title="Назад" onClick={() => goBack(sid, pane)} disabled={paneState.historyIndex <= 0}>
           <ChevronLeft size={16} />
         </IconButton>
@@ -183,6 +238,9 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
           <House size={15} />
         </IconButton>
         <PathBar sid={sid} pane={pane} editRequest={editRequest} />
+        <IconButton title="Закладки" active={isBookmarked} onClick={(e) => setBookmarkMenu({ x: e.clientX, y: e.clientY })}>
+          <Star size={15} fill={isBookmarked ? 'currentColor' : 'none'} />
+        </IconButton>
         <IconButton title="Оновити (Ctrl+R)" onClick={() => void refresh(sid, pane)}>
           {paneState.loading ? <Spinner size={14} /> : <RefreshCw size={15} />}
         </IconButton>
@@ -215,9 +273,23 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         </IconButton>
         <span className="flex-1" />
         {isRemote && (
-          <IconButton title="Термінал у цій теці" onClick={() => ops.openTerminalHere(sid, paneState.path)}>
-            <Terminal size={15} />
-          </IconButton>
+          <>
+            <IconButton
+              title={session?.sudo ? 'Вимкнути sudo-режим' : 'sudo-режим: операції з правами root'}
+              active={!!session?.sudo}
+              danger={!!session?.sudo}
+              disabled={!session?.hasShell || session?.status !== 'connected'}
+              onClick={() => void toggleSudo(sid)}
+            >
+              <ShieldAlert size={15} />
+            </IconButton>
+            <IconButton title="Порівняти з локальною текою" onClick={() => ops.compare(sid)}>
+              <GitCompareArrows size={15} />
+            </IconButton>
+            <IconButton title="Термінал у цій теці" onClick={() => ops.openTerminalHere(sid, paneState.path)}>
+              <Terminal size={15} />
+            </IconButton>
+          </>
         )}
         <IconButton title="Пошук (Ctrl+Shift+F)" onClick={() => ops.search(sid, pane)}>
           <FileSearch size={15} />
@@ -290,6 +362,7 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
       </div>
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={buildMenu(menu.entry)} onClose={() => setMenu(null)} />}
+      {bookmarkMenu && <ContextMenu x={bookmarkMenu.x} y={bookmarkMenu.y} items={buildBookmarkMenu()} onClose={() => setBookmarkMenu(null)} />}
     </section>
   )
 }
