@@ -175,6 +175,23 @@ export class LocalFs implements FsAdapter {
     }
   }
 
+  async readRange(p: string, start: number, length: number): Promise<Buffer> {
+    if (length <= 0) return Buffer.alloc(0)
+    const fh = await fsp.open(p, 'r')
+    try {
+      const buf = Buffer.allocUnsafe(length)
+      let got = 0
+      while (got < length) {
+        const { bytesRead } = await fh.read(buf, got, length - got, start + got)
+        if (bytesRead === 0) break
+        got += bytesRead
+      }
+      return buf.subarray(0, got)
+    } finally {
+      await fh.close()
+    }
+  }
+
   async writeFileAtomic(p: string, data: Buffer): Promise<void> {
     const dir = nodePath.dirname(p)
     const tmp = nodePath.join(dir, `.${nodePath.basename(p)}.${randomBytes(4).toString('hex')}.cc-tmp`)

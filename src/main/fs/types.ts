@@ -20,6 +20,8 @@ export interface FsAdapter {
   chmod(p: string, mode: number, recursive: boolean): Promise<void>
   createFile(p: string): Promise<void>
   readFile(p: string, maxBytes?: number): Promise<{ data: Buffer; truncated: boolean }>
+  /** Прочитати фрагмент файлу від start довжиною length байтів */
+  readRange(p: string, start: number, length: number): Promise<Buffer>
   writeFileAtomic(p: string, data: Buffer): Promise<void>
   utimes(p: string, atimeMs: number, mtimeMs: number): Promise<void>
   diskUsage(p: string): Promise<DiskUsage | null>

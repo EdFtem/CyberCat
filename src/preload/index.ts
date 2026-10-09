@@ -87,6 +87,18 @@ const api: Api = {
   prompt: {
     answer: (id, answer) => call('prompt:answer', id, answer)
   },
+  sshconfig: {
+    list: () => call('sshconfig:list'),
+    import: (aliases) => call('sshconfig:import', aliases)
+  },
+  tail: {
+    start: (target, p, lines) => call('tail:start', target, p, lines),
+    snapshot: (tailId) => call('tail:snapshot', tailId),
+    stop: (tailId) => call('tail:stop', tailId)
+  },
+  search: {
+    run: (req) => call('search:run', req)
+  },
   on: {
     sessionUpdate: (cb) => on('session:update', cb),
     sessionReconnected: (cb) => on('session:reconnected', cb),
@@ -95,7 +107,9 @@ const api: Api = {
     terminalData: (cb) => on('terminal:data', cb),
     terminalExit: (cb) => on('terminal:exit', cb),
     promptRequest: (cb) => on('prompt:request', cb),
-    toast: (cb) => on('toast', cb)
+    toast: (cb) => on('toast', cb),
+    tailData: (cb) => on('tail:data', cb),
+    tailExit: (cb) => on('tail:exit', cb)
   }
 }
 

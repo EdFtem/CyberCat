@@ -270,5 +270,14 @@ export const ops = {
 
   revealLocal(entry: FileEntry): void {
     void api.app.showInFolder(entry.path)
+  },
+
+  tailLog(sid: string, pane: PaneId, entry: FileEntry): void {
+    if (entry.isDir) return
+    void S().openLog(sid, paneTarget(sid, pane), entry.path)
+  },
+
+  search(sid: string, pane: PaneId): void {
+    S().openDialog({ kind: 'search', sessionId: sid, pane })
   }
 }

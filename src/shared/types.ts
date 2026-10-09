@@ -10,6 +10,8 @@ export interface Profile {
   username: string
   auth: AuthMethod
   keyPath?: string
+  /** Проміжні хости у форматі OpenSSH: [user@]host[:port], кілька через кому */
+  proxyJump?: string
   savePassword: boolean
   /** Обчислюється у main: чи є збережений пароль */
   hasPassword?: boolean
@@ -263,4 +265,58 @@ export interface Toast {
   kind: 'info' | 'success' | 'error' | 'warning'
   title: string
   message?: string
+}
+
+// ---- Імпорт ~/.ssh/config
+export interface SshConfigHost {
+  alias: string
+  host: string
+  port: number
+  user?: string
+  identityFile?: string
+  proxyJump?: string
+  /** Чи вже є профіль з такою ж адресою та користувачем */
+  exists?: boolean
+}
+
+// ---- Живий перегляд логів
+export interface TailStartRequest {
+  target: Target
+  path: string
+  lines?: number
+}
+export interface TailData {
+  tailId: string
+  data: string
+  /** Порядковий номер фрагмента; фрагменти з seq <= snapshot.seq уже є у знімку */
+  seq: number
+}
+export interface TailSnapshot {
+  text: string
+  seq: number
+}
+export interface TailExit {
+  tailId: string
+  error?: string
+}
+
+// ---- Пошук
+export interface SearchRequest {
+  target: Target
+  root: string
+  name?: string
+  content?: string
+  caseSensitive?: boolean
+  maxResults?: number
+}
+export interface SearchHit {
+  entry: FileEntry
+  line?: number
+  text?: string
+}
+export interface SearchResponse {
+  hits: SearchHit[]
+  truncated: boolean
+  method: 'shell' | 'walk'
+  warning?: string
 }

@@ -8,7 +8,7 @@ Graphical SSH/SFTP file manager: dual-pane browser, resumable transfer queue, Mo
 
 ![CyberCat connection manager](docs/screenshot-home.png)
 
-**English summary.** CyberCat is a WinSCP-style client for people who live in SSH all day. Connection profiles support passwords, OpenSSH and PuTTY keys and SSH agents, with passwords stored through the OS keychain and strict host key verification. Transfers run in a queue with pause, cancel, retry and resume from the last committed byte, and they survive reconnects. Files open in Monaco with the original encoding and line endings preserved, saves are atomic and conflicts with server-side edits are detected. The UI is currently in Ukrainian; localization is on the roadmap. Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
+**English summary.** CyberCat is a WinSCP-style client for people who live in SSH all day. Connection profiles support passwords, OpenSSH and PuTTY keys and SSH agents, with passwords stored through the OS keychain and strict host key verification. Transfers run in a queue with pause, cancel, retry and resume from the last committed byte, and they survive reconnects. Files open in Monaco with the original encoding and line endings preserved, saves are atomic and conflicts with server-side edits are detected. Hosts import from `~/.ssh/config` including ProxyJump chains, logs can be followed live with `tail -F`, and files are searchable by name and content. The UI is currently in Ukrainian; localization is on the roadmap. Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -24,9 +24,15 @@ Graphical SSH/SFTP file manager: dual-pane browser, resumable transfer queue, Mo
 - **Зовнішній редактор**: файл завантажується у тимчасову теку, відкривається у вашій програмі та автоматично заливається при кожному збереженні.
 - **Операції**: створення тек і файлів, перейменування, переміщення, рекурсивне видалення, chmod із рекурсією, властивості, копіювання шляху.
 - **Вбудований термінал** на xterm.js у тій самій SSH-сесії, відкривається у поточній теці.
+- **Імпорт ~/.ssh/config**: хости, користувачі, порти, ключі та ProxyJump підхоплюються одним кліком, з підтримкою Include і шаблонів.
+- **ProxyJump**: підключення через один або кілька проміжних хостів, дані для bastion беруться з ssh config.
+- **Живий перегляд логів**: tail -F у pty з підсвіткою рівнів, фільтром, паузою й автопрокруткою; без shell працює через опитування SFTP.
+- **Пошук на сервері**: за назвою через find і за вмістом через grep, з переходом до файлу у панелі або в редактор.
 - **Автоперепідключення** з keepalive, стійка черга передач.
 
 ![Editor](docs/screenshot-editor.png)
+
+![Live log view](docs/screenshot-logview.png)
 
 ## Запуск
 
@@ -54,6 +60,7 @@ npm run dist       # пакування (electron-builder, Windows)
 | F8, Del | Видалити |
 | Ctrl+L | Редагувати шлях |
 | Ctrl+F | Фільтр |
+| Ctrl+Shift+F | Пошук у поточній теці |
 | Ctrl+H | Приховані файли |
 | Ctrl+R | Оновити |
 | Ctrl+Shift+N | Новий файл |
@@ -89,8 +96,6 @@ tests           e2e-тест бекенду та smoke-тест UI
 
 ## План розвитку
 
-- Імпорт `~/.ssh/config` і підключення через ProxyJump
-- Живий перегляд логів (tail -f) і пошук на сервері (find, grep)
 - sudo-режим для редагування системних файлів
 - Порівняння і синхронізація тек
 - Масове перейменування, користувацькі команди, закладки

@@ -265,6 +265,24 @@ export class RemoteFs implements FsAdapter {
     }
   }
 
+  async readRange(p: string, start: number, length: number): Promise<Buffer> {
+    if (length <= 0) return Buffer.alloc(0)
+    const sftp = this.sftp
+    const h = await sftpOpen(sftp, p, 'r')
+    try {
+      const buf = Buffer.allocUnsafe(length)
+      let got = 0
+      while (got < length) {
+        const n = await sftpRead(sftp, h, buf, got, Math.min(READ_CHUNK, length - got), start + got)
+        if (n === 0) break
+        got += n
+      }
+      return buf.subarray(0, got)
+    } finally {
+      await sftpClose(sftp, h).catch(() => {})
+    }
+  }
+
   private async writeWhole(p: string, data: Buffer): Promise<void> {
     const sftp = this.sftp
     const h = await sftpOpen(sftp, p, 'w')

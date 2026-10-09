@@ -10,7 +10,13 @@ import type {
   PromptRequest,
   SaveTextRequest,
   SaveTextResult,
+  SearchRequest,
+  SearchResponse,
   SessionInfo,
+  SshConfigHost,
+  TailData,
+  TailExit,
+  TailSnapshot,
   Target,
   Toast,
   TransferRequest,
@@ -94,6 +100,18 @@ export interface Api {
   prompt: {
     answer(id: string, answer: unknown): Promise<void>
   }
+  sshconfig: {
+    list(): Promise<SshConfigHost[]>
+    import(aliases: string[]): Promise<Profile[]>
+  }
+  tail: {
+    start(target: Target, path: string, lines?: number): Promise<string>
+    snapshot(tailId: string): Promise<TailSnapshot>
+    stop(tailId: string): Promise<void>
+  }
+  search: {
+    run(req: SearchRequest): Promise<SearchResponse>
+  }
   on: {
     sessionUpdate(cb: (info: SessionInfo) => void): Unsubscribe
     sessionReconnected(cb: (id: string) => void): Unsubscribe
@@ -103,5 +121,7 @@ export interface Api {
     terminalExit(cb: (p: { termId: string }) => void): Unsubscribe
     promptRequest(cb: (req: PromptRequest) => void): Unsubscribe
     toast(cb: (t: Toast) => void): Unsubscribe
+    tailData(cb: (d: TailData) => void): Unsubscribe
+    tailExit(cb: (d: TailExit) => void): Unsubscribe
   }
 }

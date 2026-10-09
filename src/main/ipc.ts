@@ -10,8 +10,11 @@ import { externalEditor } from './editor/ExternalEditor'
 import { transfers } from './transfer/TransferManager'
 import { terminals } from './terminal/TerminalService'
 import { answerPrompt } from './prompter'
+import { importSshHosts, listSshConfigHosts } from './ssh/sshConfig'
+import { tails } from './tail/TailService'
+import { runSearch } from './search/SearchService'
 import type { AppInfo } from '@shared/api'
-import type { AppSettings, ConnectRequest, Profile, SaveTextRequest, Target, TransferRequest } from '@shared/types'
+import type { AppSettings, ConnectRequest, Profile, SaveTextRequest, SearchRequest, Target, TransferRequest } from '@shared/types'
 
 type Handler = (...args: never[]) => unknown
 
@@ -158,4 +161,16 @@ export function registerIpc(): void {
 
   // ---- prompts
   handle('prompt:answer', (id: string, answer: unknown) => answerPrompt(id, answer))
+
+  // ---- ssh config
+  handle('sshconfig:list', () => listSshConfigHosts())
+  handle('sshconfig:import', (aliases: string[]) => importSshHosts(aliases))
+
+  // ---- tail
+  handle('tail:start', (target: Target, path: string, lines?: number) => tails.start(target, path, lines))
+  handle('tail:snapshot', (id: string) => tails.snapshot(id))
+  handle('tail:stop', (id: string) => tails.stop(id))
+
+  // ---- search
+  handle('search:run', (req: SearchRequest) => runSearch(req))
 }

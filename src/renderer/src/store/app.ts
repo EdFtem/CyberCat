@@ -40,6 +40,8 @@ export interface PaneState {
 
 export interface EditorDoc {
   id: string
+  kind: 'text' | 'log'
+  tailId?: string
   target: Target
   path: string
   name: string
@@ -91,6 +93,8 @@ export type Dialog =
   | { kind: 'chmod'; sessionId: string; pane: PaneId; target: Target; entries: FileEntry[] }
   | { kind: 'properties'; target: Target; entry: FileEntry }
   | { kind: 'settings' }
+  | { kind: 'sshImport' }
+  | { kind: 'search'; sessionId: string; pane: PaneId }
   | { kind: 'about' }
 
 interface NavigateOptions {
@@ -138,6 +142,7 @@ interface Actions {
   goHome(sid: string, pane: PaneId): Promise<void>
 
   openDoc(sid: string, target: Target, path: string): Promise<void>
+  openLog(sid: string, target: Target, path: string): Promise<void>
   updateDoc(sid: string, id: string, content: string): void
   saveDoc(sid: string, id: string, force?: boolean): Promise<boolean>
   closeDoc(sid: string, id: string, force?: boolean): void
@@ -343,8 +348,9 @@ export const useApp = create<AppStore>((set, get) => ({
 
   async closeTab(id) {
     const ui = get().ui[id]
-    const dirty = ui?.docs.filter((d) => d.content !== d.savedContent || d.eol !== d.savedEol) ?? []
+    const dirty = ui?.docs.filter((d) => d.kind === 'text' && (d.content !== d.savedContent || d.eol !== d.savedEol)) ?? []
     const doClose = async (): Promise<void> => {
+      for (const d of ui?.docs ?? []) if (d.kind === 'log' && d.tailId) void api.tail.stop(d.tailId).catch(() => {})
       await api.sessions.remove(id).catch(() => {})
       set((s) => {
         const tabs = s.tabs.filter((t) => t !== id)
@@ -511,6 +517,7 @@ export const useApp = create<AppStore>((set, get) => ({
       const res = await api.text.open(target, path)
       const doc: EditorDoc = {
         id: uid(),
+        kind: 'text',
         target,
         path,
         name: pathLib(target).basename(path),
@@ -539,6 +546,41 @@ export const useApp = create<AppStore>((set, get) => ({
     }
   },
 
+  async openLog(sid, target, path) {
+    const ui = get().ui[sid]
+    if (!ui) return
+    const existing = ui.docs.find((d) => d.kind === 'log' && d.target === target && d.path === path)
+    if (existing) {
+      set((s) => ({ ui: { ...s.ui, [sid]: { ...s.ui[sid], activeDocId: existing.id, editorVisible: true } } }))
+      return
+    }
+    try {
+      const tailId = await api.tail.start(target, path, 300)
+      const doc: EditorDoc = {
+        id: uid(),
+        kind: 'log',
+        tailId,
+        target,
+        path,
+        name: pathLib(target).basename(path),
+        content: '',
+        savedContent: '',
+        eol: 'LF',
+        savedEol: 'LF',
+        encoding: 'utf-8',
+        mtime: 0,
+        size: 0,
+        truncated: false,
+        saving: false
+      }
+      set((s) => ({
+        ui: { ...s.ui, [sid]: { ...s.ui[sid], docs: [...s.ui[sid].docs, doc], activeDocId: doc.id, editorVisible: true } }
+      }))
+    } catch (e) {
+      get().pushToast({ kind: 'error', title: 'Не вдалося відкрити лог', message: errMsg(e) })
+    }
+  },
+
   updateDoc(sid, id, content) {
     set((s) => {
       const ui = s.ui[sid]
@@ -549,7 +591,7 @@ export const useApp = create<AppStore>((set, get) => ({
 
   async saveDoc(sid, id, force = false) {
     const doc = get().ui[sid]?.docs.find((d) => d.id === id)
-    if (!doc || doc.saving) return false
+    if (!doc || doc.saving || doc.kind === 'log') return false
     if (doc.truncated) {
       get().pushToast({ kind: 'error', title: 'Збереження вимкнено', message: 'Файл було відкрито частково.' })
       return false
@@ -603,6 +645,10 @@ export const useApp = create<AppStore>((set, get) => ({
     const ui = get().ui[sid]
     const doc = ui?.docs.find((d) => d.id === id)
     if (!ui || !doc) return
+    if (doc.kind === 'log') {
+      if (doc.tailId) void api.tail.stop(doc.tailId).catch(() => {})
+      force = true
+    }
     if (!force && (doc.content !== doc.savedContent || doc.eol !== doc.savedEol)) {
       get().openDialog({
         kind: 'confirm',

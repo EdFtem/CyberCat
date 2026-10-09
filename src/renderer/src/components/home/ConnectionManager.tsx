@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Cat, FolderOpen, KeyRound, Lock, Fingerprint, Plus, Search, Server, Trash2, Plug, Save } from 'lucide-react'
+import { Cat, FolderOpen, KeyRound, Lock, Fingerprint, Plus, Search, Server, Trash2, Plug, Save, Import } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { cn } from '@/lib/cn'
 import type { AuthMethod, Profile } from '@shared/types'
-import { Button, Checkbox, Field, Segmented, EmptyState, Kbd } from '../ui'
+import { Button, Checkbox, Field, Segmented, EmptyState, Kbd, IconButton } from '../ui'
 
 const COLORS = ['', '#22d3ee', '#34d399', '#fbbf24', '#f97316', '#f87171', '#c084fc', '#60a5fa', '#f472b6']
 
@@ -21,6 +21,7 @@ interface Form {
   group: string
   remotePath: string
   localPath: string
+  proxyJump: string
   createdAt: number
   hasPassword: boolean
 }
@@ -40,6 +41,7 @@ function emptyForm(): Form {
     group: '',
     remotePath: '',
     localPath: '',
+    proxyJump: '',
     createdAt: 0,
     hasPassword: false
   }
@@ -60,6 +62,7 @@ function fromProfile(p: Profile): Form {
     group: p.group ?? '',
     remotePath: p.remotePath ?? '',
     localPath: p.localPath ?? '',
+    proxyJump: p.proxyJump ?? '',
     createdAt: p.createdAt,
     hasPassword: !!p.hasPassword
   }
@@ -79,6 +82,7 @@ function toProfile(f: Form): Profile {
     group: f.group.trim() || undefined,
     remotePath: f.remotePath.trim() || undefined,
     localPath: f.localPath.trim() || undefined,
+    proxyJump: f.proxyJump.trim() || undefined,
     createdAt: f.createdAt
   }
 }
@@ -190,6 +194,9 @@ export function ConnectionManager() {
           <Button variant="primary" icon={<Plus size={15} />} onClick={startNew} title="Нове підключення">
             Нове
           </Button>
+          <IconButton title="Імпорт із ~/.ssh/config" size={32} className="border border-border bg-surface-2 shrink-0" onClick={() => openDialog({ kind: 'sshImport' })}>
+            <Import size={15} />
+          </IconButton>
         </div>
         <div className="flex-1 overflow-auto px-2 pb-2">
           {!profiles.length && (
@@ -333,6 +340,9 @@ export function ConnectionManager() {
                   </div>
                 </Field>
               </div>
+              <Field label="Проміжний хост (ProxyJump)" hint="Необов’язково. Формат OpenSSH: [user@]bastion[:port], кілька через кому. Користувач і ключ беруться з ~/.ssh/config, якщо там є запис для цього хоста.">
+                <input className="input input-mono" placeholder="jump@bastion.example.com" value={form.proxyJump} onChange={(e) => set({ proxyJump: e.target.value })} spellCheck={false} />
+              </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Група" hint="Для групування у списку, напр. «Прод»">
                   <input className="input" list="cc-groups" value={form.group} onChange={(e) => set({ group: e.target.value })} />

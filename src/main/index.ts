@@ -9,6 +9,7 @@ import { sessions } from './ssh/SessionManager'
 import { terminals } from './terminal/TerminalService'
 import { externalEditor } from './editor/ExternalEditor'
 import { transfers } from './transfer/TransferManager'
+import { tails } from './tail/TailService'
 import { rejectAllPrompts } from './prompter'
 import { settings } from './store/settings'
 
@@ -100,6 +101,7 @@ app.on('before-quit', (e) => {
   rejectAllPrompts('Застосунок закривається')
   transfers.cancelAll()
   terminals.closeAll()
+  tails.stopAll()
   externalEditor
     .closeAll()
     .catch(() => {})

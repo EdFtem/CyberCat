@@ -48,8 +48,17 @@ module.exports = ({ win, app }) => {
   }
   const js = (code) => win.webContents.executeJavaScript(code, true)
   const click = (selector) => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.click(); return true })()`)
+  const clickByText = (selector, text) =>
+    js(
+      `(() => { const el = [...document.querySelectorAll(${JSON.stringify(selector)})].find((x) => x.textContent.trim().startsWith(${JSON.stringify(text)})); if (!el) return false; el.click(); return true })()`
+    )
+  const escape = () => js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
   const remoteRow = (contains) =>
     `[...document.querySelectorAll('[id^="filelist-"][id$="-remote"] .file-row')].find((r) => r.textContent.includes(${JSON.stringify(contains)}))`
+  const setInput = (selector, value) =>
+    js(
+      `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`
+    )
 
   win.webContents.once('did-finish-load', async () => {
     try {
@@ -72,10 +81,6 @@ module.exports = ({ win, app }) => {
         `window.api.sessions.connect({ adHoc: { name: 'docker sshd', host: ${JSON.stringify(HOST)}, port: ${PORT}, username: ${JSON.stringify(USER)}, auth: 'password', savePassword: false, color: '#22d3ee' }, password: ${JSON.stringify(PASS)} })`
       )
       console.log(`[smoke] connected in ${Date.now() - t0} ms: status=${info && info.status} home=${info && info.homeDir} shell=${info && info.hasShell}`)
-      const listProbe = await js(
-        `window.api.fs.list(${JSON.stringify(info.id)}, ${JSON.stringify(info.homeDir || '/')}).then((r) => 'ok ' + r.entries.length, (e) => 'err ' + e.message)`
-      )
-      console.log(`[smoke] fs.list probe: ${listProbe}`)
       await sleep(3500)
       await shot('02-session')
       console.log(`[smoke] remote rows visible: ${await js(`document.querySelectorAll('[id^="filelist-"][id$="-remote"] .file-row').length`)}`)
@@ -87,13 +92,15 @@ module.exports = ({ win, app }) => {
       await shot('03-terminal')
 
       // Контекстне меню на рядку панелі сервера
-      const hadMenu = await js(
-        `(() => { const el = ${remoteRow('sshd.pid')} || document.querySelector('[id^="filelist-"][id$="-remote"] .file-row'); if (!el) return false; const r = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 80, clientY: r.top + 14, button: 2 })); return true })()`
-      )
+      const openMenu = (contains) =>
+        js(
+          `(() => { const el = ${remoteRow(contains)} || document.querySelector('[id^="filelist-"][id$="-remote"] .file-row'); if (!el) return false; const r = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 80, clientY: r.top + 14, button: 2 })); return true })()`
+        )
+      await openMenu('sshd.pid')
       await sleep(600)
       await shot('04-context-menu')
-      console.log(`[smoke] context menu dispatched: ${hadMenu}, visible: ${await js(`!!document.querySelector('.fixed.z-\\\\[71\\\\]')`)}`)
-      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+      console.log(`[smoke] context menu visible: ${await js(`!!document.querySelector('.fixed.z-\\\\[71\\\\]')`)}`)
+      await escape()
       await sleep(300)
 
       // Відкрити файл у редакторі подвійним кліком
@@ -106,30 +113,84 @@ module.exports = ({ win, app }) => {
       await click('button[title="До файлів (Ctrl+E)"]')
       await sleep(500)
 
+      // Живий перегляд логу: готуємо файл з рівнями, відкриваємо через контекстне меню
+      const logPath = `${info.homeDir}/cybercat-demo.log`
+      await js(
+        `window.api.text.save({ target: ${JSON.stringify(info.id)}, path: ${JSON.stringify(logPath)}, content: ${JSON.stringify(
+          [
+            '2026-10-09 09:30:01 INFO  server started on :8080',
+            '2026-10-09 09:30:02 DEBUG loading config from /etc/app.yml',
+            '2026-10-09 09:30:05 WARN  cache miss ratio 0.42 above threshold',
+            '2026-10-09 09:30:09 ERROR upstream timeout after 5000 ms (attempt 3)',
+            '2026-10-09 09:30:10 INFO  retrying upstream connection',
+            ''
+          ].join('\n')
+        )}, eol: 'LF', encoding: 'utf-8' })`
+      )
+      await js(`[...document.querySelectorAll('button[title="Оновити (Ctrl+R)"]')].pop().click()`)
+      await sleep(1500)
+      console.log(`[smoke] demo log row present: ${await js(`!!(${remoteRow('cybercat-demo.log')})`)}`)
+      await openMenu('cybercat-demo.log')
+      await sleep(400)
+      const tailClicked = await clickByText('.fixed.z-\\[71\\] button', 'Стежити за логом')
+      await sleep(2500)
+      // дописуємо рядок, щоб перевірити live
+      await js(
+        `window.api.terminal.open(${JSON.stringify(info.id)}, 80, 24).then((t) => { window.api.terminal.write(t, 'echo "2026-10-09 09:30:15 ERROR disk /var 97% full" >> ${logPath}\\n'); setTimeout(() => window.api.terminal.close(t), 1500) })`
+      )
+      await sleep(2500)
+      await shot('06-logview')
+      console.log(`[smoke] log view opened: ${tailClicked}, live rows: ${await js(`document.querySelectorAll('.font-mono .h-5').length`)}`)
+      await click('button[title="До файлів (Ctrl+E)"]')
+      await sleep(400)
+
+      // Пошук через Ctrl+Shift+F на панелі сервера
+      await js(`document.querySelector('[id^="filelist-"][id$="-remote"]').focus()`)
+      await js(
+        `document.querySelector('[id^="filelist-"][id$="-remote"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'F', code: 'KeyF', ctrlKey: true, shiftKey: true, bubbles: true }))`
+      )
+      await sleep(500)
+      await setInput('input[placeholder="*.conf"]', 'ssh')
+      await setInput('input[placeholder="listen 443"]', '')
+      await clickByText('.fixed.z-50 button', 'Шукати')
+      await sleep(2500)
+      await shot('07-search')
+      console.log(`[smoke] search results: ${await js(`document.querySelectorAll('.fixed.z-50 .group').length`)}`)
+      await escape()
+      await sleep(300)
+
       // Панель передач
       await click('button[title="Передачі"]')
       await sleep(600)
-      await shot('06-transfers')
+      await shot('08-transfers')
       await click('button[title="Згорнути"]')
 
       // Налаштування
       await click('button[title="Налаштування (Ctrl+,)"]')
       await sleep(600)
-      await shot('07-settings')
-      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+      await shot('09-settings')
+      await escape()
+      await sleep(300)
+
+      // Імпорт із ssh config на головній вкладці
+      await clickByText('header nav button', 'Підключення')
+      await sleep(400)
+      await click('button[title="Імпорт із ~/.ssh/config"]')
+      await sleep(1500)
+      await shot('10-ssh-import')
+      console.log(`[smoke] ssh config hosts listed: ${await js(`document.querySelectorAll('.fixed.z-50 label input[type=checkbox]').length`)}`)
+      await escape()
       await sleep(300)
 
       // Світла тема через кнопку у заголовку
       await click('button[title="Світла тема"]')
       await sleep(1000)
-      const colors = await js(
-        `(() => { const cs = (sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).backgroundColor : 'n/a' }; return { theme: document.documentElement.dataset.theme, body: getComputedStyle(document.body).backgroundColor, header: cs('header'), pane: cs('section') } })()`
-      )
-      console.log('[smoke] light theme computed:', JSON.stringify(colors))
-      await shot('08-light')
+      await shot('11-light')
       await click('button[title="Темна тема"]')
       await sleep(400)
 
+      // прибираємо демо-лог
+      await js(`window.api.fs.remove(${JSON.stringify(info.id)}, [{ path: ${JSON.stringify(logPath)}, isDir: false }])`).catch(() => {})
       console.log('[smoke] done')
     } catch (e) {
       console.error('[smoke] failed:', e)

@@ -45,7 +45,7 @@ async function until(fn: () => boolean, timeoutMs: number, label: string): Promi
 }
 
 /** Отримати ключ хоста напряму, щоб уникнути діалогу */
-function fetchHostKey(): Promise<Buffer> {
+function fetchHostKey(host = HOST, port = PORT): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const c = new Client()
     let key: Buffer | undefined
@@ -56,8 +56,8 @@ function fetchHostKey(): Promise<Buffer> {
     })
     c.on('close', () => key && resolve(key))
     c.connect({
-      host: HOST,
-      port: PORT,
+      host,
+      port,
       username: USER,
       password: PASS,
       hostVerifier: (k: Buffer, verify: (ok: boolean) => void) => {
@@ -234,6 +234,122 @@ async function main(): Promise<void> {
   await until(() => item().status === 'done', 120_000, 'retry done')
   eq(await remoteHash(`${base}/up/huge.bin`), sha256(huge), 'sha256 після відновлення збігається')
   ok(item().transferred === huge.length, 'лічильник байтів дорівнює розміру')
+
+  console.log('\n[6a] ssh config: розбір і ефективні опції')
+  const { parseSshConfigText, hostFromBlocks, matchesPatterns } = await import('../src/main/ssh/sshConfig')
+  const blocks = parseSshConfigText(`
+# коментар
+IdentityFile ~/.ssh/global_key
+Host !prod-eu prod-*
+    Port 2300
+Host prod prod-*
+    HostName prod.example.com
+    User deploy
+    Port 2200
+    IdentityFile ~/.ssh/prod_key
+    ProxyJump bastion
+Host bastion
+    HostName bastion.example.com
+    User jump
+Host *
+    User fallback
+`)
+  const prod = hostFromBlocks(blocks, 'prod')
+  eq(prod.host, 'prod.example.com', 'HostName')
+  eq(prod.user, 'deploy', 'User')
+  eq(prod.port, 2200, 'Port')
+  eq(prod.proxyJump, 'bastion', 'ProxyJump')
+  eq(hostFromBlocks(blocks, 'prod-us').port, 2300, 'перший збіг виграє')
+  eq(hostFromBlocks(blocks, 'prod-eu').port, 2200, 'заперечний шаблон виключає блок')
+  eq(hostFromBlocks(blocks, 'unknown').user, 'fallback', 'Host * як запасний варіант')
+  eq(hostFromBlocks(blocks, 'unknown').host, 'unknown', 'HostName за замовчуванням дорівнює alias')
+  ok(
+    matchesPatterns(['*.example.com', '!bad.example.com'], 'good.example.com') && !matchesPatterns(['*.example.com', '!bad.example.com'], 'bad.example.com'),
+    'глоб-шаблони з запереченням'
+  )
+  const { parseProxyJump } = await import('../src/main/ssh/Session')
+  const pj = parseProxyJump('jump@bastion:2222, other, [::1]:22')
+  ok(
+    pj.length === 3 && pj[0].user === 'jump' && pj[0].host === 'bastion' && pj[0].port === 2222 && pj[1].host === 'other' && pj[1].port === undefined && pj[2].host === '::1' && pj[2].port === 22,
+    'розбір ProxyJump'
+  )
+
+  console.log('\n[6b] Живий перегляд логу')
+  const { tails } = await import('../src/main/tail/TailService')
+  const { bus } = await import('../src/main/bus')
+  const logPath = `${base}/app.log`
+  await remote.writeFileAtomic(logPath, Buffer.from('line1\nline2\n'))
+  const received: string[] = []
+  let tailId = ''
+  const onTail = (d: { tailId: string; data: string }): void => {
+    if (d.tailId === tailId) received.push(d.data)
+  }
+  bus.on('tail:data', onTail)
+  tailId = await tails.start(info.id, logPath, 100)
+  await until(() => tails.snapshot(tailId).text.includes('line2'), 5000, 'tail initial')
+  await session.exec(`echo line3 >> ${logPath}`)
+  await until(() => received.join('').includes('line3'), 8000, 'tail live')
+  ok(true, 'tail -F через shell отримує нові рядки')
+  const snap = tails.snapshot(tailId)
+  ok(snap.text.includes('line1') && snap.text.includes('line3') && snap.seq >= 2, `snapshot містить історію (seq ${snap.seq})`)
+  tails.stop(tailId)
+  bus.off('tail:data', onTail)
+
+  const localLog = join(localSrc, 'local.log')
+  await fsp.writeFile(localLog, 'a\nb\n')
+  const received2: string[] = []
+  let tail2 = ''
+  const onTail2 = (d: { tailId: string; data: string }): void => {
+    if (d.tailId === tail2) received2.push(d.data)
+  }
+  bus.on('tail:data', onTail2)
+  tail2 = await tails.start('local', localLog, 100)
+  await until(() => tails.snapshot(tail2).text.includes('b'), 5000, 'local tail initial')
+  await fsp.appendFile(localLog, 'c\n')
+  await until(() => received2.join('').includes('c'), 8000, 'local tail poll')
+  ok(true, 'опитування локального файлу підхоплює дописані рядки')
+  tails.stop(tail2)
+  bus.off('tail:data', onTail2)
+
+  console.log('\n[6c] Пошук')
+  const { runSearch } = await import('../src/main/search/SearchService')
+  await remote.writeFileAtomic(`${base}/a/needle.txt`, Buffer.from('hello\nfind me here\n'))
+  const byName = await runSearch({ target: info.id, root: base, name: 'needle' })
+  ok(byName.method === 'shell' && byName.hits.some((h) => h.entry.path === `${base}/a/needle.txt`), `пошук за назвою через shell (${byName.hits.length})`)
+  const byContent = await runSearch({ target: info.id, root: base, content: 'FIND ME' })
+  const hit = byContent.hits.find((h) => h.entry.path === `${base}/a/needle.txt`)
+  ok(!!hit && hit.line === 2 && /find me/i.test(hit.text ?? ''), `пошук за вмістом без урахування регістру: рядок ${hit?.line}, «${hit?.text}»`)
+  const byBoth = await runSearch({ target: info.id, root: base, name: '*.txt', content: 'hello', caseSensitive: true })
+  ok(byBoth.hits.length === 1 && byBoth.hits[0].entry.name === 'needle.txt', 'назва і вміст разом')
+  const walked = await runSearch({ target: 'local', root: localSrc, name: '*.bin' })
+  ok(walked.method === 'walk' && walked.hits.length >= 3, `локальний пошук за назвою: ${walked.hits.length} збігів`)
+  const walkedContent = await runSearch({ target: 'local', root: localSrc, content: 'small' })
+  ok(walkedContent.hits.some((h) => h.entry.name === 'small.txt' && h.line === 1), 'локальний пошук за вмістом')
+
+  console.log('\n[6d] ProxyJump')
+  if (process.env.CC_TEST_JUMP && process.env.CC_TEST_TARGET) {
+    const jm = /^(?:(.+)@)?([^:]+)(?::(\d+))?$/.exec(process.env.CC_TEST_JUMP)!
+    const tm = /^([^:]+)(?::(\d+))?$/.exec(process.env.CC_TEST_TARGET)!
+    const jumpHost = jm[2]
+    const jumpPort = Number(jm[3] ?? 22)
+    const targetHost = tm[1]
+    const targetPort = Number(tm[2] ?? 22)
+    hostKeys.save(jumpHost, jumpPort, await fetchHostKey(jumpHost, jumpPort))
+    // Цільовий сервер з боку bastion має іншу адресу, але той самий ключ
+    hostKeys.save(targetHost, targetPort, hostKey)
+    const viaJump = await sessions.connect({
+      adHoc: { name: 'via-jump', host: targetHost, port: targetPort, username: USER, auth: 'password', savePassword: false, proxyJump: process.env.CC_TEST_JUMP },
+      password: PASS
+    })
+    eq(viaJump.status, 'connected', 'підключення через ProxyJump')
+    const viaList = await new RemoteFs(sessions.require(viaJump.id)).list(viaJump.homeDir!)
+    ok(viaList.length > 0, `список тек через тунель (${viaList.length})`)
+    const viaExec = await sessions.require(viaJump.id).exec('hostname')
+    ok(viaExec.stdout.trim().length > 0, `shell через тунель: ${viaExec.stdout.trim()}`)
+    sessions.remove(viaJump.id)
+  } else {
+    console.log('  - пропущено: задайте CC_TEST_JUMP=cat@127.0.0.1:2223 і CC_TEST_TARGET=<ip контейнера>:2222')
+  }
 
   console.log('\n[6] Термінал (shell) та видалення')
   const shell = await session.shell(80, 24)

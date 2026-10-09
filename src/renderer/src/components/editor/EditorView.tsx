@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
-import { ArrowLeft, Save, X, Laptop, Server, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Save, X, Laptop, Server, TriangleAlert, ScrollText } from 'lucide-react'
 import { languageFor, monaco } from '@/lib/monaco'
 import { useApp, type EditorDoc } from '@/store/app'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { Button, IconButton, Spinner } from '../ui'
+import { LogView } from './LogView'
 
 export function EditorView({ sid }: { sid: string }) {
   const docs = useApp((s) => s.ui[sid]?.docs ?? [])
@@ -21,7 +22,7 @@ export function EditorView({ sid }: { sid: string }) {
   const saveRef = useRef<() => void>(() => {})
 
   saveRef.current = () => {
-    if (doc) void saveDoc(sid, doc.id)
+    if (doc && doc.kind === 'text') void saveDoc(sid, doc.id)
   }
 
   const onMount: OnMount = useCallback((editor) => {
@@ -31,11 +32,12 @@ export function EditorView({ sid }: { sid: string }) {
   }, [])
 
   useEffect(() => {
-    editorRef.current?.focus()
-  }, [doc?.id])
+    if (doc?.kind === 'text') editorRef.current?.focus()
+  }, [doc?.id, doc?.kind])
 
   if (!doc) return null
-  const dirty = doc.content !== doc.savedContent || doc.eol !== doc.savedEol
+  const isLog = doc.kind === 'log'
+  const dirty = !isLog && (doc.content !== doc.savedContent || doc.eol !== doc.savedEol)
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-surface rounded-lg border border-border overflow-hidden">
@@ -49,9 +51,18 @@ export function EditorView({ sid }: { sid: string }) {
             <DocTab key={d.id} d={d} active={d.id === doc.id} onClick={() => setActiveDoc(sid, d.id)} onClose={() => closeDoc(sid, d.id)} />
           ))}
         </div>
-        <Button size="sm" variant={dirty ? 'primary' : 'ghost'} icon={doc.saving ? <Spinner size={13} /> : <Save size={14} />} disabled={!dirty || doc.saving || doc.truncated} onClick={() => void saveDoc(sid, doc.id)} title="Зберегти (Ctrl+S)">
-          Зберегти
-        </Button>
+        {!isLog && (
+          <Button
+            size="sm"
+            variant={dirty ? 'primary' : 'ghost'}
+            icon={doc.saving ? <Spinner size={13} /> : <Save size={14} />}
+            disabled={!dirty || doc.saving || doc.truncated}
+            onClick={() => void saveDoc(sid, doc.id)}
+            title="Зберегти (Ctrl+S)"
+          >
+            Зберегти
+          </Button>
+        )}
       </div>
 
       {doc.truncated && (
@@ -60,34 +71,38 @@ export function EditorView({ sid }: { sid: string }) {
         </div>
       )}
 
-      <div className="flex-1 min-h-0">
-        <Editor
-          path={`cybercat://${sid}/${doc.id}/${encodeURIComponent(doc.name)}`}
-          language={languageFor(doc.name)}
-          value={doc.content}
-          theme={theme === 'dark' ? 'cybercat-dark' : 'cybercat-light'}
-          onChange={(v) => updateDoc(sid, doc.id, v ?? '')}
-          onMount={onMount}
-          loading={<Spinner size={22} />}
-          options={{
-            fontFamily: 'Cascadia Code, JetBrains Mono, Consolas, monospace',
-            fontSize: 13,
-            lineHeight: 20,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            renderWhitespace: 'selection',
-            smoothScrolling: true,
-            cursorBlinking: 'smooth',
-            padding: { top: 10 },
-            readOnly: doc.truncated,
-            bracketPairColorization: { enabled: true },
-            fontLigatures: true,
-            wordWrap: 'off',
-            tabSize: 4
-          }}
-        />
-      </div>
+      {isLog ? (
+        <LogView key={doc.id} doc={doc} />
+      ) : (
+        <div className="flex-1 min-h-0">
+          <Editor
+            path={`cybercat://${sid}/${doc.id}/${encodeURIComponent(doc.name)}`}
+            language={languageFor(doc.name)}
+            value={doc.content}
+            theme={theme === 'dark' ? 'cybercat-dark' : 'cybercat-light'}
+            onChange={(v) => updateDoc(sid, doc.id, v ?? '')}
+            onMount={onMount}
+            loading={<Spinner size={22} />}
+            options={{
+              fontFamily: 'Cascadia Code, JetBrains Mono, Consolas, monospace',
+              fontSize: 13,
+              lineHeight: 20,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              renderWhitespace: 'selection',
+              smoothScrolling: true,
+              cursorBlinking: 'smooth',
+              padding: { top: 10 },
+              readOnly: doc.truncated,
+              bracketPairColorization: { enabled: true },
+              fontLigatures: true,
+              wordWrap: 'off',
+              tabSize: 4
+            }}
+          />
+        </div>
+      )}
 
       <div className="flex items-center gap-4 px-3 h-7 border-t border-border text-[11.5px] text-dim">
         <span className="inline-flex items-center gap-1.5 min-w-0">
@@ -95,13 +110,19 @@ export function EditorView({ sid }: { sid: string }) {
           <span className="truncate font-mono">{doc.path}</span>
         </span>
         <span className="flex-1" />
-        <span>{formatBytes(doc.size)}</span>
-        <span className="uppercase">{doc.encoding}</span>
-        <button type="button" className="hover:text-text" title="Перемкнути тип переносу рядка" onClick={() => toggleEol(sid, doc)}>
-          {doc.eol}
-        </button>
-        <span>{languageFor(doc.name)}</span>
-        {dirty && <span className="text-warning">● змінено</span>}
+        {isLog ? (
+          <span>живий перегляд</span>
+        ) : (
+          <>
+            <span>{formatBytes(doc.size)}</span>
+            <span className="uppercase">{doc.encoding}</span>
+            <button type="button" className="hover:text-text" title="Перемкнути тип переносу рядка" onClick={() => toggleEol(sid, doc)}>
+              {doc.eol}
+            </button>
+            <span>{languageFor(doc.name)}</span>
+            {dirty && <span className="text-warning">● змінено</span>}
+          </>
+        )}
       </div>
     </div>
   )
@@ -117,7 +138,7 @@ function toggleEol(sid: string, doc: EditorDoc): void {
 }
 
 function DocTab({ d, active, onClick, onClose }: { d: EditorDoc; active: boolean; onClick: () => void; onClose: () => void }) {
-  const dirty = d.content !== d.savedContent || d.eol !== d.savedEol
+  const dirty = d.kind === 'text' && (d.content !== d.savedContent || d.eol !== d.savedEol)
   return (
     <div
       role="tab"
@@ -134,7 +155,13 @@ function DocTab({ d, active, onClick, onClose }: { d: EditorDoc; active: boolean
       )}
       title={d.path}
     >
-      {d.target === 'local' ? <Laptop size={12} className="text-dim" /> : <Server size={12} className="text-accent" />}
+      {d.kind === 'log' ? (
+        <ScrollText size={12} className="text-success" />
+      ) : d.target === 'local' ? (
+        <Laptop size={12} className="text-dim" />
+      ) : (
+        <Server size={12} className="text-accent" />
+      )}
       <span className="truncate max-w-[180px]">{d.name}</span>
       <IconButton
         title="Закрити"

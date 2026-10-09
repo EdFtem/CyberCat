@@ -4,6 +4,8 @@ import { useApp, type Dialog } from '@/store/app'
 import { Button, Checkbox, Field, Modal, Segmented } from '../ui'
 import { formatBytes, formatDateFull, modeToOctal, modeToString, parseOctal, countLabel } from '@/lib/format'
 import { FileIcon } from '@/lib/fileIcons'
+import { SearchDialog } from './SearchDialog'
+import { SshImportDialog } from './SshImportDialog'
 import type { FileEntry, Target } from '@shared/types'
 
 export function DialogHost() {
@@ -21,6 +23,10 @@ export function DialogHost() {
       return <PropertiesDialog target={dialog.target} entry={dialog.entry} close={close} />
     case 'settings':
       return <SettingsDialog close={close} />
+    case 'sshImport':
+      return <SshImportDialog close={close} />
+    case 'search':
+      return <SearchDialog sessionId={dialog.sessionId} pane={dialog.pane} close={close} />
     case 'about':
       return <AboutDialog close={close} />
     default:

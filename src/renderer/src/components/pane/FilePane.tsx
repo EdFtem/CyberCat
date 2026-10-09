@@ -23,7 +23,9 @@ import {
   Terminal,
   Trash2,
   Upload,
-  X
+  X,
+  ScrollText,
+  FileSearch
 } from 'lucide-react'
 import { useApp, paneTarget, type PaneId } from '@/store/app'
 import { ops, selectedEntries } from '@/lib/ops'
@@ -70,6 +72,7 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         { label: 'Новий файл', icon: <FilePlus2 size={14} />, shortcut: 'Ctrl+Shift+N', onClick: () => ops.createFile(sid, pane) },
         { type: 'separator' },
         { label: 'Оновити', icon: <RefreshCw size={14} />, shortcut: 'Ctrl+R', onClick: () => void refresh(sid, pane) },
+        { label: 'Пошук у цій теці…', icon: <FileSearch size={14} />, shortcut: 'Ctrl+Shift+F', onClick: () => ops.search(sid, pane) },
         { label: 'Показувати приховані', checked: showHidden, shortcut: 'Ctrl+H', onClick: () => void updateSettings({ showHidden: !showHidden }) },
         { type: 'separator' },
         ...(isRemote
@@ -83,6 +86,7 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
       items.push({ label: entry.isDir ? 'Відкрити' : 'Відкрити у редакторі', icon: <FilePen size={14} />, shortcut: 'Enter', onClick: () => ops.openEntry(sid, pane, entry) })
       if (!entry.isDir && isRemote) items.push({ label: 'Редагувати у зовнішньому редакторі', icon: <SquareArrowOutUpRight size={14} />, shortcut: 'Shift+F4', onClick: () => ops.editExternal(sid, pane, entry) })
       if (!entry.isDir && !isRemote) items.push({ label: 'Відкрити системною програмою', icon: <SquareArrowOutUpRight size={14} />, onClick: () => void window.api.app.openPath(entry.path) })
+      if (!entry.isDir) items.push({ label: 'Стежити за логом', icon: <ScrollText size={14} />, onClick: () => ops.tailLog(sid, pane, entry) })
       if (!isRemote && !entry.isDrive) items.push({ label: 'Показати у Провіднику', icon: <FolderInput size={14} />, onClick: () => ops.revealLocal(entry) })
       items.push({ type: 'separator' })
     }
@@ -141,6 +145,11 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
           e.preventDefault()
           setEditRequest((n) => n + 1)
+        }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+          e.preventDefault()
+          ops.search(sid, pane)
+          return
         }
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
           e.preventDefault()
@@ -210,6 +219,9 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
             <Terminal size={15} />
           </IconButton>
         )}
+        <IconButton title="Пошук (Ctrl+Shift+F)" onClick={() => ops.search(sid, pane)}>
+          <FileSearch size={15} />
+        </IconButton>
         <IconButton title={showHidden ? 'Сховати приховані (Ctrl+H)' : 'Показати приховані (Ctrl+H)'} active={showHidden} onClick={() => void updateSettings({ showHidden: !showHidden })}>
           {showHidden ? <Eye size={15} /> : <EyeOff size={15} />}
         </IconButton>
