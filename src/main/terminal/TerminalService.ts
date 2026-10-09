@@ -19,7 +19,7 @@ class TerminalService {
     bus.on('session:removed', (id: string) => this.closeForSession(id))
   }
 
-  async open(sessionId: string, cols: number, rows: number, cwd?: string): Promise<string> {
+  async open(sessionId: string, cols: number, rows: number, cwd?: string, command?: string): Promise<string> {
     const session = sessions.require(sessionId)
     const stream = await session.shell(Math.max(cols, 10), Math.max(rows, 2))
     const id = randomUUID()
@@ -35,10 +35,10 @@ class TerminalService {
       /* обробляється через close */
     })
 
-    if (cwd) {
+    if (cwd || command) {
       // Чекаємо на запрошення оболонки, щоб команда не задвоїлась у виводі.
       // Пробіл на початку не додає команду в історію bash з HISTCONTROL=ignorespace
-      const cd = ` cd ${shq(cwd)}\n`
+      const cd = ` ${[cwd ? `cd ${shq(cwd)}` : '', command ?? ''].filter(Boolean).join(' && ')}\n`
       let sent = false
       const send = (): void => {
         if (sent) return

@@ -81,11 +81,26 @@ class TailService {
     }
   }
 
+  /** Довільна команда з потоковим виводом (наприклад docker logs -f) */
+  async startCommand(sessionId: string, cmd: string): Promise<string> {
+    const session = sessions.require(sessionId)
+    if (!session.info.hasShell) throw new Error('Потрібен доступ до shell на сервері')
+    const id = randomUUID()
+    const rec: Tail = { sessionId, chunks: [], bytes: 0, nextSeq: 1, stop: () => {}, stopped: false }
+    this.tails.set(id, rec)
+    const ok = await this.startExec(id, rec, session, cmd, 0, true)
+    if (!ok) {
+      this.tails.delete(id)
+      throw new Error('Команда завершилась одразу після запуску')
+    }
+    return id
+  }
+
   /** tail -F у pty: закриття каналу надсилає SIGHUP і процес завершується */
-  private startExec(id: string, rec: Tail, session: Session, path: string, lines: number): Promise<boolean> {
+  private startExec(id: string, rec: Tail, session: Session, path: string, lines: number, rawCommand = false): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       session
-        .execStream(`tail -n ${Math.max(0, Math.floor(lines))} -F -- ${shq(path)}`, { pty: true })
+        .execStream(rawCommand ? path : `tail -n ${Math.max(0, Math.floor(lines))} -F -- ${shq(path)}`, { pty: true })
         .then((stream: ClientChannel) => {
           const decoder = new StringDecoder('utf8')
           let decided = false

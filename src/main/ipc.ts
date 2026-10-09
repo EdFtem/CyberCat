@@ -15,8 +15,20 @@ import { tails } from './tail/TailService'
 import { runSearch } from './search/SearchService'
 import { runCompare } from './sync/CompareService'
 import { watches } from './sync/WatchService'
+import * as docker from './docker/DockerService'
+import { tunnels } from './tunnel/TunnelService'
 import type { AppInfo } from '@shared/api'
-import type { AppSettings, CompareRequest, ConnectRequest, Profile, SaveTextRequest, SearchRequest, Target, TransferRequest } from '@shared/types'
+import type {
+  AppSettings,
+  CompareRequest,
+  ConnectRequest,
+  DockerContainerAction,
+  Profile,
+  SaveTextRequest,
+  SearchRequest,
+  Target,
+  TransferRequest
+} from '@shared/types'
 
 type Handler = (...args: never[]) => unknown
 
@@ -68,6 +80,10 @@ export function registerIpc(): void {
     if (err) throw new Error(err)
   })
   handle('app:showInFolder', (p: string) => shell.showItemInFolder(p))
+  handle('app:openExternal', async (url: string) => {
+    if (!/^https?:\/\//i.test(url)) throw new Error('Дозволено лише http(s) посилання')
+    await shell.openExternal(url)
+  })
   handle('app:setTitleBarOverlay', (o: { color: string; symbolColor: string }) => {
     const win = focusedWindow()
     try {
@@ -171,8 +187,8 @@ export function registerIpc(): void {
   handle('extedit:uploadNow', (id: string) => externalEditor.upload(id))
 
   // ---- terminal
-  handle('terminal:open', (sessionId: string, cols: number, rows: number, cwd?: string) =>
-    terminals.open(sessionId, cols, rows, cwd)
+  handle('terminal:open', (sessionId: string, cols: number, rows: number, cwd?: string, command?: string) =>
+    terminals.open(sessionId, cols, rows, cwd, command)
   )
   ipcMain.on('terminal:write', (_e, termId: string, data: string) => terminals.write(termId, data))
   ipcMain.on('terminal:resize', (_e, termId: string, cols: number, rows: number) =>
@@ -200,4 +216,26 @@ export function registerIpc(): void {
   handle('watch:start', (sid: string, l: string, r: string) => watches.start(sid, l, r))
   handle('watch:stop', (id: string) => watches.stop(id))
   handle('watch:list', () => watches.list())
+
+  // ---- docker
+  handle('docker:detect', (sid: string, force?: boolean) => docker.detectDocker(sid, !!force))
+  handle('docker:containers', (sid: string) => docker.listContainers(sid))
+  handle('docker:action', (sid: string, id: string, action: DockerContainerAction, force?: boolean) => docker.containerAction(sid, id, action, !!force))
+  handle('docker:inspect', (sid: string, id: string) => docker.inspectContainer(sid, id))
+  handle('docker:images', (sid: string) => docker.listImages(sid))
+  handle('docker:imageAction', (sid: string, id: string, action: 'rm' | 'pull', force?: boolean) => docker.imageAction(sid, id, action, !!force))
+  handle('docker:volumes', (sid: string) => docker.listVolumes(sid))
+  handle('docker:volumeAction', (sid: string, name: string, action: 'rm', force?: boolean) => docker.volumeAction(sid, name, action, !!force))
+  handle('docker:diskUsage', (sid: string) => docker.diskUsage(sid))
+  handle('docker:prune', (sid: string, what: 'images' | 'volumes' | 'containers' | 'system') => docker.prune(sid, what))
+  handle('docker:logs', async (sid: string, id: string, tail = 300) => tails.startCommand(sid, await docker.logsCommand(sid, id, tail)))
+  handle('docker:shellCommand', (sid: string, id: string) => docker.execShellCommand(sid, id))
+  handle('docker:composeCommand', (sid: string, project: string, dir: string | undefined, files: string[] | undefined, action: string) =>
+    docker.composeCommand(sid, project, dir, files, action)
+  )
+
+  // ---- tunnels
+  handle('tunnel:start', (sid: string, host: string, port: number) => tunnels.start(sid, host, port))
+  handle('tunnel:stop', (id: string) => tunnels.stop(id))
+  handle('tunnel:list', () => tunnels.list())
 }

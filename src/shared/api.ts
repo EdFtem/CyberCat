@@ -4,6 +4,12 @@ import type {
   CompareResult,
   ConnectRequest,
   DiskUsage,
+  DockerContainer,
+  DockerContainerAction,
+  DockerDiskUsage,
+  DockerImage,
+  DockerInfo,
+  DockerVolume,
   ExecOutput,
   ExternalEdit,
   FileEntry,
@@ -24,6 +30,7 @@ import type {
   Toast,
   TransferRequest,
   TransferSummary,
+  Tunnel,
   WatchInfo
 } from './types'
 
@@ -43,6 +50,7 @@ export interface Api {
     pickFile(opts?: { title?: string; defaultPath?: string }): Promise<string | null>
     pickDirectory(opts?: { title?: string; defaultPath?: string }): Promise<string | null>
     openPath(p: string): Promise<void>
+    openExternal(url: string): Promise<void>
     showInFolder(p: string): Promise<void>
     setTitleBarOverlay(o: { color: string; symbolColor: string }): Promise<void>
     getPathForFile(f: File): string
@@ -99,7 +107,7 @@ export interface Api {
     uploadNow(id: string): Promise<void>
   }
   terminal: {
-    open(sessionId: string, cols: number, rows: number, cwd?: string): Promise<string>
+    open(sessionId: string, cols: number, rows: number, cwd?: string, command?: string): Promise<string>
     write(termId: string, data: string): void
     resize(termId: string, cols: number, rows: number): void
     close(termId: string): Promise<void>
@@ -127,6 +135,27 @@ export interface Api {
     stop(id: string): Promise<void>
     list(): Promise<WatchInfo[]>
   }
+  docker: {
+    detect(sessionId: string, force?: boolean): Promise<DockerInfo>
+    containers(sessionId: string): Promise<DockerContainer[]>
+    action(sessionId: string, id: string, action: DockerContainerAction, force?: boolean): Promise<string>
+    inspect(sessionId: string, id: string): Promise<unknown>
+    images(sessionId: string): Promise<DockerImage[]>
+    imageAction(sessionId: string, id: string, action: 'rm' | 'pull', force?: boolean): Promise<string>
+    volumes(sessionId: string): Promise<DockerVolume[]>
+    volumeAction(sessionId: string, name: string, action: 'rm', force?: boolean): Promise<string>
+    diskUsage(sessionId: string): Promise<DockerDiskUsage[]>
+    prune(sessionId: string, what: 'images' | 'volumes' | 'containers' | 'system'): Promise<string>
+    /** Запускає docker logs -f і повертає tailId для LogView */
+    logs(sessionId: string, id: string, tail?: number): Promise<string>
+    shellCommand(sessionId: string, id: string): Promise<string>
+    composeCommand(sessionId: string, project: string, dir: string | undefined, files: string[] | undefined, action: string): Promise<string>
+  }
+  tunnel: {
+    start(sessionId: string, remoteHost: string, remotePort: number): Promise<Tunnel>
+    stop(id: string): Promise<void>
+    list(): Promise<Tunnel[]>
+  }
   on: {
     sessionUpdate(cb: (info: SessionInfo) => void): Unsubscribe
     sessionReconnected(cb: (id: string) => void): Unsubscribe
@@ -139,5 +168,6 @@ export interface Api {
     tailData(cb: (d: TailData) => void): Unsubscribe
     tailExit(cb: (d: TailExit) => void): Unsubscribe
     watchUpdate(cb: (list: WatchInfo[]) => void): Unsubscribe
+    tunnelUpdate(cb: (list: Tunnel[]) => void): Unsubscribe
   }
 }

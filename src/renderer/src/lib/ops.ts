@@ -2,7 +2,7 @@ import { useApp, paneTarget, otherPane, type PaneId, type PaneState } from '@/st
 import { pathLib } from './paths'
 import { looksBinary } from './fileIcons'
 import { countLabel } from './format'
-import type { Bookmark, FileEntry, Toast } from '@shared/types'
+import type { Bookmark, DockerContainer, FileEntry, Toast } from '@shared/types'
 
 const api = window.api
 const S = (): ReturnType<typeof useApp.getState> => useApp.getState()
@@ -17,7 +17,7 @@ export function toast(kind: Toast['kind'], title: string, message?: string): voi
 
 /** Екранування для POSIX-оболонки */
 export function shellQuote(s: string): string {
-  return `'${s.replace(/'/g, `'\\''`)}'`
+  return "'" + s.replace(/'/g, "'\\''") + "'"
 }
 
 export interface CustomCommand {
@@ -431,6 +431,35 @@ export const ops = {
 
   async removeBookmark(id: string): Promise<void> {
     await S().updateSettings({ bookmarks: S().settings.bookmarks.filter((b) => b.id !== id) })
+  },
+
+  async dockerLogs(sid: string, c: DockerContainer): Promise<void> {
+    const existing = S().ui[sid]?.docs.find((d) => d.kind === 'log' && d.path === `docker logs ${c.name}`)
+    if (existing) {
+      S().setActiveDoc(sid, existing.id)
+      return
+    }
+    try {
+      const tailId = await api.docker.logs(sid, c.id, 300)
+      S().openCommandLog(sid, tailId, `docker logs ${c.name}`)
+    } catch (e) {
+      toast('error', 'Не вдалося відкрити логи', errMsg(e))
+    }
+  },
+
+  async dockerShell(sid: string, c: DockerContainer): Promise<void> {
+    try {
+      const cmd = await api.docker.shellCommand(sid, c.id)
+      const ui = S().ui[sid]
+      if (ui?.terminalOpen && ui.terminalId) {
+        api.terminal.write(ui.terminalId, `${cmd}\n`)
+      } else {
+        S().setTerminalCommand(sid, cmd)
+        if (!ui?.terminalOpen) S().toggleTerminal(sid)
+      }
+    } catch (e) {
+      toast('error', 'Не вдалося відкрити shell у контейнері', errMsg(e))
+    }
   },
 
   search(sid: string, pane: PaneId): void {

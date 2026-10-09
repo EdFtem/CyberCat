@@ -82,7 +82,8 @@ export const sftpStatVfs = (sftp: SFTPWrapper, path: string): Promise<StatVfs> =
 
 /** Екранування для POSIX-оболонки */
 export function shq(s: string): string {
-  return `'${s.replace(/'/g, `'\''`)}'`
+  // Кожна внутрішня лапка стає '\'' : закрити, екранована лапка, відкрити
+  return "'" + s.replace(/'/g, "'\\''") + "'"
 }
 
 /** Код помилки SFTP (ssh2 додає поле code до Error) */

@@ -545,6 +545,7 @@ export class Session extends EventEmitter {
     return new Promise((resolve, reject) => {
       const client = this.client
       if (!client || !this.ready) return reject(new Error('Сесію не підключено'))
+      if (process.env.CYBERCAT_DEBUG_EXEC) console.log(`[exec ${this.id.slice(0, 8)}] ${cmd}`)
       client.exec(cmd, (err, stream) => {
         if (err) return reject(err)
         let stdout = ''

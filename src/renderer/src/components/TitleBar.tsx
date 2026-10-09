@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowDownUp, Cat, House, Moon, PencilLine, Plus, Settings, Sun, Upload, X, CircleAlert, Eye } from 'lucide-react'
+import { ArrowDownUp, Cat, House, Moon, PencilLine, Plus, Settings, Sun, Upload, X, CircleAlert, Eye, Globe, ExternalLink } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { cn } from '@/lib/cn'
 import { IconButton, StatusDot, Spinner } from './ui'
@@ -22,6 +22,8 @@ export function TitleBar() {
   const [editsOpen, setEditsOpen] = useState(false)
   const [watchOpen, setWatchOpen] = useState(false)
   const watches = useApp((s) => s.watches)
+  const [tunnelOpen, setTunnelOpen] = useState(false)
+  const tunnels = useApp((s) => s.tunnels)
 
   const padRight = platform === 'win32' ? 150 : 12
   const padLeft = platform === 'darwin' ? 80 : 12
@@ -82,6 +84,15 @@ export function TitleBar() {
           </IconButton>
           {editsOpen && <ExternalEditsMenu onClose={() => setEditsOpen(false)} />}
         </div>
+        {tunnels.length > 0 && (
+          <div className="relative">
+            <IconButton title="Тунелі портів" active={tunnelOpen} onClick={() => setTunnelOpen((v) => !v)}>
+              <Globe size={16} />
+              <Dot count={tunnels.length} tone="accent" />
+            </IconButton>
+            {tunnelOpen && <TunnelMenu onClose={() => setTunnelOpen(false)} />}
+          </div>
+        )}
         {watches.length > 0 && (
           <div className="relative">
             <IconButton title="Стеження за теками" active={watchOpen} onClick={() => setWatchOpen((v) => !v)}>
@@ -145,6 +156,37 @@ function Tab({
       {color && <span className="absolute left-0 right-0 top-0 h-[2px] rounded-t-lg" style={{ background: color }} />}
       {children}
     </button>
+  )
+}
+
+function TunnelMenu({ onClose }: { onClose: () => void }) {
+  const tunnels = useApp((s) => s.tunnels)
+  const sessions = useApp((s) => s.sessions)
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onMouseDown={onClose} />
+      <div className="absolute right-0 top-9 z-50 w-[380px] card p-2" style={{ boxShadow: 'var(--shadow)' }}>
+        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-dim">Тунелі портів через SSH</div>
+        {tunnels.map((t) => (
+          <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[12.5px] font-mono truncate">
+                localhost:{t.localPort} → {t.remoteHost}:{t.remotePort}
+              </div>
+              <div className="text-[11.5px] text-dim truncate">
+                {sessions[t.sessionId]?.name ?? 'сесія'} · з’єднань: {t.connections}
+              </div>
+            </div>
+            <IconButton title="Відкрити у браузері" size={26} onClick={() => void window.api.app.openExternal(`http://localhost:${t.localPort}`)}>
+              <ExternalLink size={14} />
+            </IconButton>
+            <IconButton title="Закрити тунель" size={26} danger onClick={() => void window.api.tunnel.stop(t.id)}>
+              <X size={14} />
+            </IconButton>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
 

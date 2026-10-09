@@ -26,6 +26,7 @@ const api: Api = {
     pickFile: (opts) => call('app:pickFile', opts),
     pickDirectory: (opts) => call('app:pickDirectory', opts),
     openPath: (p) => call('app:openPath', p),
+    openExternal: (url) => call('app:openExternal', url),
     showInFolder: (p) => call('app:showInFolder', p),
     setTitleBarOverlay: (o) => call('app:setTitleBarOverlay', o),
     getPathForFile: (f) => webUtils.getPathForFile(f)
@@ -82,7 +83,7 @@ const api: Api = {
     uploadNow: (id) => call('extedit:uploadNow', id)
   },
   terminal: {
-    open: (sessionId, cols, rows, cwd) => call('terminal:open', sessionId, cols, rows, cwd),
+    open: (sessionId, cols, rows, cwd, command) => call('terminal:open', sessionId, cols, rows, cwd, command),
     write: (termId, data) => ipcRenderer.send('terminal:write', termId, data),
     resize: (termId, cols, rows) => ipcRenderer.send('terminal:resize', termId, cols, rows),
     close: (termId) => call('terminal:close', termId)
@@ -110,6 +111,26 @@ const api: Api = {
     stop: (id) => call('watch:stop', id),
     list: () => call('watch:list')
   },
+  docker: {
+    detect: (sid, force) => call('docker:detect', sid, force),
+    containers: (sid) => call('docker:containers', sid),
+    action: (sid, id, action, force) => call('docker:action', sid, id, action, force),
+    inspect: (sid, id) => call('docker:inspect', sid, id),
+    images: (sid) => call('docker:images', sid),
+    imageAction: (sid, id, action, force) => call('docker:imageAction', sid, id, action, force),
+    volumes: (sid) => call('docker:volumes', sid),
+    volumeAction: (sid, name, action, force) => call('docker:volumeAction', sid, name, action, force),
+    diskUsage: (sid) => call('docker:diskUsage', sid),
+    prune: (sid, what) => call('docker:prune', sid, what),
+    logs: (sid, id, tail) => call('docker:logs', sid, id, tail),
+    shellCommand: (sid, id) => call('docker:shellCommand', sid, id),
+    composeCommand: (sid, project, dir, files, action) => call('docker:composeCommand', sid, project, dir, files, action)
+  },
+  tunnel: {
+    start: (sid, host, port) => call('tunnel:start', sid, host, port),
+    stop: (id) => call('tunnel:stop', id),
+    list: () => call('tunnel:list')
+  },
   on: {
     sessionUpdate: (cb) => on('session:update', cb),
     sessionReconnected: (cb) => on('session:reconnected', cb),
@@ -121,7 +142,8 @@ const api: Api = {
     toast: (cb) => on('toast', cb),
     tailData: (cb) => on('tail:data', cb),
     tailExit: (cb) => on('tail:exit', cb),
-    watchUpdate: (cb) => on('watch:update', cb)
+    watchUpdate: (cb) => on('watch:update', cb),
+    tunnelUpdate: (cb) => on('tunnel:update', cb)
   }
 }
 

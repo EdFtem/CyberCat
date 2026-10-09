@@ -61,7 +61,10 @@ export function TerminalPanel({ sid }: { sid: string }) {
       /* ignore */
     }
 
-    const cwd = useApp.getState().ui[sid]?.panes.remote.path
+    const uiState = useApp.getState().ui[sid]
+    const cwd = uiState?.panes.remote.path
+    const command = uiState?.terminalCommand
+    if (command) useApp.getState().setTerminalCommand(sid, undefined)
     term.writeln(`\x1b[90mПідключення до ${session?.host ?? 'сервера'}…\x1b[0m`)
 
     const offData = api.on.terminalData(({ termId: id, data }) => {
@@ -75,7 +78,7 @@ export function TerminalPanel({ sid }: { sid: string }) {
     })
 
     api.terminal
-      .open(sid, term.cols, term.rows, cwd)
+      .open(sid, term.cols, term.rows, cwd, command)
       .then((id) => {
         if (cancelled) {
           void api.terminal.close(id)

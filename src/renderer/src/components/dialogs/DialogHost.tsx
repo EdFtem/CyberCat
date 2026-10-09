@@ -9,6 +9,7 @@ import { SshImportDialog } from './SshImportDialog'
 import { CompareDialog } from './CompareDialog'
 import { MassRenameDialog } from './MassRenameDialog'
 import { CommandDialog } from './CommandDialog'
+import { DockerInspectDialog } from './DockerInspectDialog'
 import type { FileEntry, Target } from '@shared/types'
 
 export function DialogHost() {
@@ -36,6 +37,8 @@ export function DialogHost() {
       return <MassRenameDialog sessionId={dialog.sessionId} pane={dialog.pane} entries={dialog.entries} close={close} />
     case 'command':
       return <CommandDialog sessionId={dialog.sessionId} title={dialog.title} cmd={dialog.cmd} close={close} />
+    case 'dockerInspect':
+      return <DockerInspectDialog sessionId={dialog.sessionId} container={dialog.container} close={close} />
     case 'about':
       return <AboutDialog close={close} />
     default:

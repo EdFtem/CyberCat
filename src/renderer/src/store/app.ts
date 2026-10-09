@@ -5,6 +5,7 @@ import {
   type AppSettings,
   type ConnectRequest,
   type DiskUsage,
+  type DockerContainer,
   type Eol,
   type ExternalEdit,
   type FileEntry,
@@ -14,6 +15,7 @@ import {
   type Target,
   type Toast,
   type TransferSummary,
+  type Tunnel,
   type WatchInfo
 } from '@shared/types'
 import { pathLib, setLocalPlatform } from '@/lib/paths'
@@ -64,6 +66,9 @@ export interface SessionUI {
   activePane: PaneId
   terminalOpen: boolean
   terminalId?: string
+  /** Команда, яку термінал виконає після відкриття (наприклад docker exec) */
+  terminalCommand?: string
+  dockerOpen: boolean
   docs: EditorDoc[]
   activeDocId?: string
   editorVisible: boolean
@@ -99,6 +104,7 @@ export type Dialog =
   | { kind: 'compare'; sessionId: string }
   | { kind: 'massRename'; sessionId: string; pane: PaneId; entries: FileEntry[] }
   | { kind: 'command'; sessionId: string; title: string; cmd: string }
+  | { kind: 'dockerInspect'; sessionId: string; container: DockerContainer }
   | { kind: 'about' }
 
 export interface ClipboardState {
@@ -132,6 +138,7 @@ interface State {
   connecting: boolean
   clipboard: ClipboardState | null
   watches: WatchInfo[]
+  tunnels: Tunnel[]
 }
 
 interface Actions {
@@ -164,6 +171,9 @@ interface Actions {
 
   toggleTerminal(sid: string): void
   setTerminalId(sid: string, id?: string): void
+  setTerminalCommand(sid: string, cmd?: string): void
+  setDockerOpen(sid: string, open: boolean): void
+  openCommandLog(sid: string, tailId: string, label: string): void
 
   pushToast(t: Omit<Toast, 'id'> & { id?: string }): void
   dismissToast(id: string): void
@@ -208,6 +218,7 @@ function newSessionUI(): SessionUI {
     panes: { local: emptyPane(), remote: emptyPane() },
     activePane: 'remote',
     terminalOpen: false,
+    dockerOpen: false,
     docs: [],
     editorVisible: false
   }
@@ -243,6 +254,7 @@ export const useApp = create<AppStore>((set, get) => ({
   connecting: false,
   clipboard: null,
   watches: [],
+  tunnels: [],
 
   async boot() {
     if (get().booted) return
@@ -250,17 +262,19 @@ export const useApp = create<AppStore>((set, get) => ({
     setLocalPlatform(info.platform)
     const settings = await api.settings.get()
     applyTheme(settings.theme)
-    const [profiles, sessionList, transfers, extedits, watches] = await Promise.all([
+    const [profiles, sessionList, transfers, extedits, watches, tunnels] = await Promise.all([
       api.profiles.list(),
       api.sessions.list(),
       api.transfer.list(),
       api.extedit.list(),
-      api.watch.list().catch(() => [])
+      api.watch.list().catch(() => []),
+      api.tunnel.list().catch(() => [])
     ])
     const sessions: Record<string, SessionInfo> = {}
     for (const s of sessionList) sessions[s.id] = s
-    set({ booted: true, info, settings, profiles, sessions, transfers, extedits, watches })
+    set({ booted: true, info, settings, profiles, sessions, transfers, extedits, watches, tunnels })
     api.on.watchUpdate((list) => set({ watches: list }))
+    api.on.tunnelUpdate((list) => set({ tunnels: list }))
 
     api.on.sessionUpdate((s) => onSessionUpdate(s))
     api.on.sessionReconnected((id) => {
@@ -705,6 +719,37 @@ export const useApp = create<AppStore>((set, get) => ({
 
   setTerminalId(sid, id) {
     set((s) => (s.ui[sid] ? { ui: { ...s.ui, [sid]: { ...s.ui[sid], terminalId: id } } } : {}))
+  },
+
+  setTerminalCommand(sid, cmd) {
+    set((s) => (s.ui[sid] ? { ui: { ...s.ui, [sid]: { ...s.ui[sid], terminalCommand: cmd } } } : {}))
+  },
+
+  setDockerOpen(sid, open) {
+    set((s) => (s.ui[sid] ? { ui: { ...s.ui, [sid]: { ...s.ui[sid], dockerOpen: open, editorVisible: open ? false : s.ui[sid].editorVisible } } } : {}))
+  },
+
+  openCommandLog(sid, tailId, label) {
+    const doc: EditorDoc = {
+      id: uid(),
+      kind: 'log',
+      tailId,
+      target: sid,
+      path: label,
+      name: label,
+      content: '',
+      savedContent: '',
+      eol: 'LF',
+      savedEol: 'LF',
+      encoding: 'utf-8',
+      mtime: 0,
+      size: 0,
+      truncated: false,
+      saving: false
+    }
+    set((s) =>
+      s.ui[sid] ? { ui: { ...s.ui, [sid]: { ...s.ui[sid], docs: [...s.ui[sid].docs, doc], activeDocId: doc.id, editorVisible: true } } } : {}
+    )
   },
 
   pushToast(t) {

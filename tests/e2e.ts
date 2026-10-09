@@ -9,6 +9,8 @@ import { createHash, randomBytes } from 'crypto'
 import { promises as fsp } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import net from 'net'
+import http from 'http'
 import { Client } from 'ssh2'
 
 const HOST = process.env.CC_TEST_HOST ?? '127.0.0.1'
@@ -478,6 +480,114 @@ Host *
   watches.stop(w.id)
   ok(!watches.list().some((x) => x.id === w.id), 'стеження зупинено')
   await fsp.rm(cmpLocal, { recursive: true, force: true })
+
+  console.log('\n[6g] Docker: розбір портів, виявлення, тунелі')
+  const dockerSvc = await import('../src/main/docker/DockerService')
+  const { tunnels } = await import('../src/main/tunnel/TunnelService')
+  const ports = dockerSvc.parsePorts('0.0.0.0:8080->80/tcp, :::8080->80/tcp, 127.0.0.1:5432->5432/tcp, 9000/tcp, 0.0.0.0:53->53/udp')
+  ok(
+    ports.length === 4 &&
+      ports[0].hostPort === 53 &&
+      ports[0].proto === 'udp' &&
+      ports[1].hostPort === 5432 &&
+      ports[1].hostIp === '127.0.0.1' &&
+      ports[2].hostPort === 8080 &&
+      ports[2].containerPort === 80 &&
+      ports[3].hostPort === undefined &&
+      ports[3].containerPort === 9000,
+    `розбір портів без дублікатів IPv6 (${ports.length} записи)`
+  )
+
+  const tun = await tunnels.start(info.id, '127.0.0.1', 2222)
+  ok(tun.localPort > 0, `тунель localhost:${tun.localPort} → 127.0.0.1:2222 відкрито`)
+  const banner = await new Promise<string>((resolve, reject) => {
+    const sock = net.connect(tun.localPort, '127.0.0.1')
+    const timer = setTimeout(() => {
+      sock.destroy()
+      reject(new Error('timeout: banner'))
+    }, 8000)
+    sock.once('data', (d) => {
+      clearTimeout(timer)
+      sock.destroy()
+      resolve(d.toString())
+    })
+    sock.on('error', (e) => {
+      clearTimeout(timer)
+      reject(e)
+    })
+    sock.on('close', () => {
+      clearTimeout(timer)
+      reject(new Error('тунель закрив з’єднання без даних: сервер відхилив forwardOut'))
+    })
+  })
+  ok(banner.startsWith('SSH-2.0'), `через тунель видно банер sshd: ${banner.trim()}`)
+  tunnels.stop(tun.id)
+  ok(!tunnels.list().some((t) => t.id === tun.id), 'тунель закрито')
+
+  let dinfo = await dockerSvc.detectDocker(info.id, true)
+  console.log(`  - docker: available=${dinfo.available} cli=${dinfo.cli} compose=${dinfo.compose} needsSudo=${dinfo.needsSudo ?? false} error=${dinfo.error ?? ''}`)
+  if (!dinfo.available) {
+    console.log('  - пропущено: на тестовому сервері немає docker')
+  } else {
+    if (dinfo.error && dinfo.needsSudo) {
+      ok(true, 'без доступу до сокета повідомляє про потребу в sudo')
+      await session.enableSudo(PASS)
+      dinfo = await dockerSvc.detectDocker(info.id, true)
+    }
+    ok(dinfo.available && !dinfo.error, `docker доступний: ${dinfo.cli} ${dinfo.serverVersion}`)
+    const victim = `cybercat-victim-${randomBytes(2).toString('hex')}`
+    const run = await session.exec(`docker run -d --name ${victim} -p 18080:80 nginx:alpine 2>&1`, 120_000)
+    ok(run.code === 0, `тестовий контейнер ${victim} запущено`)
+    try {
+      await wait(1500)
+      let list = await dockerSvc.listContainers(info.id)
+      const me = list.find((c) => c.name === victim)
+      ok(!!me && me.state === 'running' && me.ports.some((p) => p.hostPort === 18080 && p.containerPort === 80), `контейнер у списку з портом 18080→80 (${me?.ports.map((p) => p.hostPort).join(',')})`)
+      ok(list.some((c) => c.name === 'cybercat-sshd'), 'список містить контейнери хоста')
+      const insp = (await dockerSvc.inspectContainer(info.id, me!.id)) as { Config?: { Image?: string }; NetworkSettings?: { IPAddress?: string; Networks?: Record<string, { IPAddress: string }> } }
+      eq(insp.Config?.Image, 'nginx:alpine', 'inspect повертає образ')
+      const victimIp = insp.NetworkSettings?.IPAddress || Object.values(insp.NetworkSettings?.Networks ?? {})[0]?.IPAddress
+      ok(!!victimIp, `IP контейнера ${victimIp}`)
+
+      const logTail = await tails.startCommand(info.id, await dockerSvc.logsCommand(info.id, me!.id, 50))
+      const web = await tunnels.start(info.id, victimIp!, 80)
+      const status = await new Promise<number>((resolve, reject) => {
+        const req = http.get({ host: '127.0.0.1', port: web.localPort, path: '/', timeout: 8000 }, (res) => {
+          res.resume()
+          resolve(res.statusCode ?? 0)
+        })
+        req.on('error', reject)
+        req.on('timeout', () => reject(new Error('timeout: http через тунель')))
+      })
+      eq(status, 200, 'HTTP 200 від nginx через SSH-тунель')
+      await until(() => /GET \/ HTTP/.test(tails.snapshot(logTail).text), 10_000, 'docker logs')
+      ok(true, 'docker logs -f показав запит, зроблений через тунель')
+      tails.stop(logTail)
+      tunnels.stop(web.id)
+
+      await dockerSvc.containerAction(info.id, me!.id, 'stop')
+      await untilAsync(async () => (await dockerSvc.listContainers(info.id)).find((c) => c.name === victim)?.state === 'exited', 15_000, 'stop → exited')
+      ok(true, 'stop → exited')
+      await dockerSvc.containerAction(info.id, me!.id, 'start')
+      await untilAsync(async () => (await dockerSvc.listContainers(info.id)).find((c) => c.name === victim)?.state === 'running', 15_000, 'start → running')
+      ok(true, 'start → running')
+      list = await dockerSvc.listContainers(info.id)
+      const images = await dockerSvc.listImages(info.id)
+      ok(images.some((i) => i.repository === 'nginx' && i.tag === 'alpine' && i.inUse), 'образ nginx:alpine позначено як використовуваний')
+      const df = await dockerSvc.diskUsage(info.id)
+      ok(df.some((d) => /Images/i.test(d.type)), `system df: ${df.map((d) => `${d.type}=${d.size}`).join(', ')}`)
+      const shellCmd = await dockerSvc.execShellCommand(info.id, me!.id)
+      ok(/docker exec -it/.test(shellCmd) && (session.sudoActive ? shellCmd.startsWith('sudo ') : true), `команда shell: ${shellCmd.slice(0, 60)}…`)
+      const composeCmd = await dockerSvc.composeCommand(info.id, 'demo', '/srv/demo', ['/srv/demo/docker-compose.yml'], 'up -d')
+      ok(/compose -p 'demo' --project-directory '\/srv\/demo' -f '\/srv\/demo\/docker-compose.yml' up -d$/.test(composeCmd), 'команда compose з проєктом, текою та файлом')
+      await dockerSvc.containerAction(info.id, me!.id, 'rm', true)
+      list = await dockerSvc.listContainers(info.id)
+      ok(!list.some((c) => c.name === victim), 'rm -f прибрав контейнер')
+    } finally {
+      await session.exec(`docker rm -f ${victim} >/dev/null 2>&1 || true`)
+      if (session.sudoActive) session.disableSudo()
+    }
+  }
 
   console.log('\n[6] Термінал (shell) та видалення')
   const shell = await session.shell(80, 24)

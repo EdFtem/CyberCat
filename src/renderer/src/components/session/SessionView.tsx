@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Code2, Plug, RotateCcw, Terminal as TerminalIcon, TriangleAlert, Unplug, X } from 'lucide-react'
+import { Code2, Container, Plug, RotateCcw, Terminal as TerminalIcon, TriangleAlert, Unplug, X } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { selectedEntries } from '@/lib/ops'
 import { formatBytes, countLabel } from '@/lib/format'
@@ -8,6 +8,7 @@ import { Button, IconButton, Spinner, StatusDot, Badge } from '../ui'
 import { FilePane } from '../pane/FilePane'
 import { EditorView } from '../editor/EditorView'
 import { TerminalPanel } from '../terminal/TerminalPanel'
+import { DockerView } from '../docker/DockerView'
 
 const SPLIT_KEY = 'cc.split'
 const TERM_KEY = 'cc.termHeight'
@@ -28,6 +29,7 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
   const closeTab = useApp((s) => s.closeTab)
   const toggleTerminal = useApp((s) => s.toggleTerminal)
   const setEditorVisible = useApp((s) => s.setEditorVisible)
+  const setDockerOpen = useApp((s) => s.setDockerOpen)
   const [split, setSplit] = useState(() => readNumber(SPLIT_KEY, 0.5))
   const [termHeight, setTermHeight] = useState(() => readNumber(TERM_KEY, 260))
   const [dragging, setDragging] = useState<'split' | 'term' | null>(null)
@@ -45,10 +47,14 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
         e.preventDefault()
         setEditorVisible(sid, !ui.editorVisible)
       }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd' && ui) {
+        e.preventDefault()
+        setDockerOpen(sid, !ui.dockerOpen)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visible, sid, ui?.docs.length, ui?.editorVisible, toggleTerminal, setEditorVisible])
+  }, [visible, sid, ui?.docs.length, ui?.editorVisible, ui?.dockerOpen, ui, toggleTerminal, setEditorVisible, setDockerOpen])
 
   const onSplitMove = useCallback(
     (e: MouseEvent) => {
@@ -155,7 +161,7 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
       )}
 
       <div ref={bodyRef} className="flex flex-col flex-1 min-h-0 p-2 gap-0">
-        <div ref={panesRef} className={cn('flex flex-1 min-h-0', ui.editorVisible && 'hidden')}>
+        <div ref={panesRef} className={cn('flex flex-1 min-h-0', (ui.editorVisible || ui.dockerOpen) && 'hidden')}>
           <div style={{ flex: `0 0 calc(${split * 100}% - 3px)` }} className="flex min-w-0">
             <FilePane sid={sid} pane="local" />
           </div>
@@ -167,6 +173,11 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
         {ui.editorVisible && (
           <div className="flex flex-1 min-h-0">
             <EditorView sid={sid} />
+          </div>
+        )}
+        {!ui.editorVisible && ui.dockerOpen && (
+          <div className="flex flex-1 min-h-0">
+            <DockerView sid={sid} />
           </div>
         )}
 
@@ -202,6 +213,9 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
             <Code2 size={13} /> {countLabel(ui.docs.length, 'файл', 'файли', 'файлів')} у редакторі
           </button>
         )}
+        <IconButton size={22} title="Docker (Ctrl+Shift+D)" active={ui.dockerOpen} onClick={() => setDockerOpen(sid, !ui.dockerOpen)} disabled={!connected || !session.hasShell}>
+          <Container size={13} />
+        </IconButton>
         <IconButton size={22} title="Термінал (Ctrl+`)" active={ui.terminalOpen} onClick={() => toggleTerminal(sid)} disabled={!connected}>
           <TerminalIcon size={13} />
         </IconButton>

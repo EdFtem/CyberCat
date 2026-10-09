@@ -8,7 +8,7 @@ Graphical SSH/SFTP file manager: dual-pane browser, resumable transfer queue, Mo
 
 ![CyberCat connection manager](docs/screenshot-home.png)
 
-**English summary.** CyberCat is a WinSCP-style client for people who live in SSH all day. Connection profiles support passwords, OpenSSH and PuTTY keys and SSH agents, with passwords stored through the OS keychain and strict host key verification. Transfers run in a queue with pause, cancel, retry and resume from the last committed byte, and they survive reconnects. Files open in Monaco with the original encoding and line endings preserved, saves are atomic and conflicts with server-side edits are detected. Hosts import from `~/.ssh/config` including ProxyJump chains, logs can be followed live with `tail -F`, and files are searchable by name and content. A sudo mode runs `sftp-server` as root over a second channel, and folders can be compared and synchronized by size, mtime or sha256, with an optional watch mode that uploads local changes as they happen. The UI is currently in Ukrainian; localization is on the roadmap. Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
+**English summary.** CyberCat is a WinSCP-style client for people who live in SSH all day. Connection profiles support passwords, OpenSSH and PuTTY keys and SSH agents, with passwords stored through the OS keychain and strict host key verification. Transfers run in a queue with pause, cancel, retry and resume from the last committed byte, and they survive reconnects. Files open in Monaco with the original encoding and line endings preserved, saves are atomic and conflicts with server-side edits are detected. Hosts import from `~/.ssh/config` including ProxyJump chains, logs can be followed live with `tail -F`, and files are searchable by name and content. A sudo mode runs `sftp-server` as root over a second channel, and folders can be compared and synchronized by size, mtime or sha256, with an optional watch mode that uploads local changes as they happen. A Docker view manages containers, images, volumes and compose projects over the same SSH session, streams `docker logs`, opens a shell inside a container and exposes published ports through SSH tunnels straight into your browser. The UI is currently in Ukrainian; localization is on the roadmap. Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -35,6 +35,8 @@ Graphical SSH/SFTP file manager: dual-pane browser, resumable transfer queue, Mo
 - **Масове перейменування**: знайти і замінити з регулярними виразами або шаблон із {name} {ext} {n} {date}, із попереднім переглядом і перевіркою конфліктів.
 - **Користувацькі команди**: власні команди з плейсхолдерами %f %n %d у контекстному меню сервера, вивід у діалозі.
 - **Закладки** на теки локально і на сервері.
+- **Docker**: контейнери з живими CPU і пам'яттю, здоров'ям і портами, старт, стоп, рестарт, пауза, видалення, логи у переглядачі, shell усередині контейнера, inspect у зручному вигляді з переходом до bind mount на хості, compose-проєкти з up, down, restart, pull і відкриттям compose-файлу, образи й томи з прибиранням. Працює через docker або podman CLI по тому ж SSH, з підказкою увімкнути sudo, якщо немає доступу до сокета.
+- **Тунелі портів**: клік по опублікованому порту контейнера відкриває його у браузері через SSH-тунель, список тунелів у заголовку.
 - **Автоперепідключення** з keepalive, стійка черга передач.
 
 ![Editor](docs/screenshot-editor.png)
@@ -77,6 +79,7 @@ npm run dist       # пакування (electron-builder, Windows)
 | Ctrl+Shift+N | Новий файл |
 | Ctrl+Shift+C | Копіювати шлях |
 | Ctrl+` | Термінал |
+| Ctrl+Shift+D | Docker |
 | Ctrl+E | Редактор / файли |
 | Ctrl+Tab | Наступна вкладка |
 | Ctrl+, | Налаштування |
@@ -94,6 +97,8 @@ docker run -d --name cybercat-sshd -p 2222:2222 -e PUID=1000 -e PGID=1000 \
 npm run test:e2e     # бекенд: SFTP, редактор, передачі, shell
 npm run test:ui      # знімки екрана у out/shots/
 ```
+
+Для сценаріїв ProxyJump і Docker тестовому серверу потрібні другий контейнер-bastion на порту 2223, увімкнений `AllowTcpForwarding yes` у його sshd_config, а також прокинутий `-v /var/run/docker.sock:/var/run/docker.sock` і встановлений `docker-cli` у контейнері sshd. Змінні `CC_TEST_JUMP=cat@127.0.0.1:2223` і `CC_TEST_TARGET=<ip контейнера>:2222` вмикають перевірку ProxyJump; без них ці розділи пропускаються.
 
 ## Структура
 

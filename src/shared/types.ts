@@ -381,3 +381,77 @@ export interface ExecOutput {
   stderr: string
   code: number
 }
+
+// ---- Docker
+export interface DockerInfo {
+  available: boolean
+  cli: 'docker' | 'podman'
+  version?: string
+  serverVersion?: string
+  compose: boolean
+  needsSudo?: boolean
+  error?: string
+}
+export interface DockerPort {
+  hostIp?: string
+  hostPort?: number
+  containerPort: number
+  proto: string
+}
+export interface DockerContainer {
+  id: string
+  shortId: string
+  name: string
+  image: string
+  state: string
+  status: string
+  created: string
+  command?: string
+  ports: DockerPort[]
+  labels: Record<string, string>
+  project?: string
+  service?: string
+  composeFiles?: string[]
+  composeDir?: string
+  cpu?: string
+  mem?: string
+  memPerc?: string
+  netIO?: string
+  blockIO?: string
+  health?: string
+  restarts?: number
+  restartPolicy?: string
+}
+export type DockerContainerAction = 'start' | 'stop' | 'restart' | 'pause' | 'unpause' | 'kill' | 'rm'
+export interface DockerImage {
+  id: string
+  repository: string
+  tag: string
+  size: string
+  created: string
+  dangling: boolean
+  inUse: boolean
+}
+export interface DockerVolume {
+  name: string
+  driver: string
+  mountpoint?: string
+  inUse: boolean
+}
+export interface DockerDiskUsage {
+  type: string
+  total: number
+  active: number
+  size: string
+  reclaimable: string
+}
+
+// ---- Тунелі портів
+export interface Tunnel {
+  id: string
+  sessionId: string
+  localPort: number
+  remoteHost: string
+  remotePort: number
+  connections: number
+}

@@ -202,6 +202,34 @@ module.exports = ({ win, app }) => {
       await escape()
       await sleep(300)
 
+      // Docker-режим
+      await click('button[title="Docker (Ctrl+Shift+D)"]')
+      await sleep(4000)
+      const dockerState = await js(`(() => { const t = document.body.innerText; return t.includes('Docker не знайдено') ? 'absent' : t.includes('Docker є, але недоступний') ? 'denied' : 'ok' })()`)
+      console.log(`[smoke] docker view state: ${dockerState}`)
+      if (dockerState === 'denied') {
+        await clickByText('.flex-1 button', 'Увімкнути sudo-режим')
+        await sleep(900)
+        await setInput('.fixed.z-50 input[type=password]', PASS)
+        await clickByText('.fixed.z-50 button', 'Продовжити')
+        await sleep(6000)
+      }
+      await shot('07f-docker')
+      console.log(`[smoke] docker containers rows: ${await js(`document.querySelectorAll('button[title="Деталі (inspect)"]').length`)}`)
+      const inspectBtn = await click('button[title="Деталі (inspect)"]')
+      if (inspectBtn) {
+        await sleep(2500)
+        await shot('07g-docker-inspect')
+        await escape()
+        await sleep(300)
+      }
+      await click('button[title="Docker (Ctrl+Shift+D)"]')
+      await sleep(400)
+      if (dockerState === 'denied') {
+        await click('button[title="Вимкнути sudo-режим"]')
+        await sleep(600)
+      }
+
       // Панель передач
       await click('button[title="Передачі"]')
       await sleep(600)

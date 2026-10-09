@@ -11,6 +11,7 @@ import { externalEditor } from './editor/ExternalEditor'
 import { transfers } from './transfer/TransferManager'
 import { tails } from './tail/TailService'
 import { watches } from './sync/WatchService'
+import { tunnels } from './tunnel/TunnelService'
 import { rejectAllPrompts } from './prompter'
 import { settings } from './store/settings'
 
@@ -104,6 +105,7 @@ app.on('before-quit', (e) => {
   terminals.closeAll()
   tails.stopAll()
   watches.stopAll()
+  tunnels.stopAll()
   externalEditor
     .closeAll()
     .catch(() => {})
