@@ -208,34 +208,47 @@ export function ConnectionManager() {
             <div key={group} className="mb-2">
               {(group || groups.length > 1) && <div className="px-2 pt-2 pb-1 text-[11px] uppercase tracking-wide text-dim">{group || t.home.ungrouped}</div>}
               {list.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedId(p.id)
-                    setTouched(false)
-                  }}
-                  onDoubleClick={() => void connect({ profileId: p.id })}
-                  className={cn(
-                    'w-full flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors',
-                    selectedId === p.id ? 'bg-accent-soft' : 'hover:bg-surface-2'
-                  )}
-                >
-                  <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-md bg-surface-3 text-muted shrink-0">
-                    <Server size={15} />
-                    {p.color && <span className="absolute -left-1 top-1 bottom-1 w-[3px] rounded-full" style={{ background: p.color }} />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium">{p.name}</span>
-                    <span className="block truncate text-[11.5px] text-dim font-mono">
-                      {p.username}@{p.host}
-                      {p.port !== 22 && `:${p.port}`}
+                <div key={p.id} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(p.id)
+                      setTouched(false)
+                    }}
+                    onDoubleClick={() => void connect({ profileId: p.id })}
+                    className={cn(
+                      'w-full flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors',
+                      selectedId === p.id ? 'bg-accent-soft' : 'hover:bg-surface-2'
+                    )}
+                  >
+                    <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-md bg-surface-3 text-muted shrink-0">
+                      <Server size={15} />
+                      {p.color && <span className="absolute -left-1 top-1 bottom-1 w-[3px] rounded-full" style={{ background: p.color }} />}
                     </span>
-                  </span>
-                  <span className="text-dim shrink-0" title={p.auth === 'key' ? t.home.auth.key : p.auth === 'agent' ? t.home.auth.agent : t.home.auth.password}>
-                    {p.auth === 'key' ? <KeyRound size={13} /> : p.auth === 'agent' ? <Fingerprint size={13} /> : <Lock size={13} />}
-                  </span>
-                </button>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-medium">{p.name}</span>
+                      <span className="block truncate text-[11.5px] text-dim font-mono">
+                        {p.username}@{p.host}
+                        {p.port !== 22 && `:${p.port}`}
+                      </span>
+                    </span>
+                    <span
+                      className="text-dim shrink-0 group-hover:opacity-0 group-focus-within:opacity-0 transition-opacity"
+                      title={p.auth === 'key' ? t.home.auth.key : p.auth === 'agent' ? t.home.auth.agent : t.home.auth.password}
+                    >
+                      {p.auth === 'key' ? <KeyRound size={13} /> : p.auth === 'agent' ? <Fingerprint size={13} /> : <Lock size={13} />}
+                    </span>
+                  </button>
+                  {/* One-click connect, so double-click is not the only way */}
+                  <IconButton
+                    title={t.home.connect}
+                    size={28}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 bg-surface-3 !text-accent hover:!bg-accent-soft"
+                    onClick={() => void connect({ profileId: p.id })}
+                  >
+                    <Plug size={14} />
+                  </IconButton>
+                </div>
               ))}
             </div>
           ))}

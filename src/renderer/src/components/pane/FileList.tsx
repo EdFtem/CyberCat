@@ -76,15 +76,20 @@ export function FileList({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [height, setHeight] = useState(400)
+  const [width, setWidth] = useState(800)
   const [dropRow, setDropRow] = useState<string | null>(null)
   const typeahead = useRef({ text: '', t: 0 })
 
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const ro = new ResizeObserver(() => setHeight(el.clientHeight))
+    const measure = (): void => {
+      setHeight(el.clientHeight)
+      setWidth(el.clientWidth)
+    }
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
-    setHeight(el.clientHeight)
+    measure()
     return () => ro.disconnect()
   }, [])
 
@@ -351,7 +356,13 @@ export function FileList({
   const startIdx = Math.max(0, Math.floor(scrollTop / ROW) - OVERSCAN)
   const endIdx = Math.min(total, Math.ceil((scrollTop + height) / ROW) + OVERSCAN)
   const slice = visible.slice(startIdx, endIdx)
-  const gridCols = isRemote ? 'minmax(0,1fr) 84px 128px 92px 110px' : 'minmax(0,1fr) 84px 128px 92px'
+  // Narrow panes keep the name readable by dropping secondary columns first
+  const cols: Columns = {
+    owner: isRemote && width >= 620,
+    mode: width >= 500,
+    mtime: width >= 380
+  }
+  const gridCols = ['minmax(0,1fr)', '76px', cols.mtime && '128px', cols.mode && '92px', cols.owner && '110px'].filter(Boolean).join(' ')
 
   const toggleSort = (key: SortKey): void => {
     if (paneState.sortKey === key) setPane(sid, pane, { sortDir: paneState.sortDir === 'asc' ? 'desc' : 'asc' })
@@ -371,14 +382,15 @@ export function FileList({
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <div className="file-row !h-7 border-b border-border !rounded-none mx-1" style={{ gridTemplateColumns: gridCols }}>
+      <div className="relative file-row !h-7 border-b border-border !rounded-none mx-1" style={{ gridTemplateColumns: gridCols }}>
         <Header k="name">{t.pane.colName}</Header>
         <Header k="size" align="right">
           {t.pane.colSize}
         </Header>
-        <Header k="mtime">{t.pane.colModified}</Header>
-        <Header k="mode">{t.pane.colPermissions}</Header>
-        {isRemote && <span className="text-[11.5px] uppercase tracking-wide text-dim">{t.pane.colOwner}</span>}
+        {cols.mtime && <Header k="mtime">{t.pane.colModified}</Header>}
+        {cols.mode && <Header k="mode">{t.pane.colPermissions}</Header>}
+        {cols.owner && <span className="text-[11.5px] uppercase tracking-wide text-dim truncate">{t.pane.colOwner}</span>}
+        {paneState.loading && paneState.entries.length > 0 && <div className="loading-bar !top-auto -bottom-px" />}
       </div>
 
       <div
@@ -421,7 +433,7 @@ export function FileList({
             key={entry.path}
             entry={entry}
             gridCols={gridCols}
-            isRemote={isRemote}
+            cols={cols}
             selected={selectedSet.has(entry.path)}
             cursor={paneState.cursor === entry.path}
             renaming={paneState.renaming === entry.path}
@@ -452,10 +464,16 @@ export function FileList({
   )
 }
 
+interface Columns {
+  owner: boolean
+  mode: boolean
+  mtime: boolean
+}
+
 function Row({
   entry,
   gridCols,
-  isRemote,
+  cols,
   selected,
   cursor,
   renaming,
@@ -472,7 +490,7 @@ function Row({
 }: {
   entry: FileEntry
   gridCols: string
-  isRemote: boolean
+  cols: Columns
   selected: boolean
   cursor: boolean
   renaming: boolean
@@ -532,10 +550,10 @@ function Row({
           </>
         )}
       </div>
-      <span className="text-right text-[12px] text-muted font-mono tabular-nums">{entry.isDir ? '' : formatBytes(entry.size)}</span>
-      <span className="text-[12px] text-muted tabular-nums truncate">{entry.isDrive ? '' : formatDate(entry.mtime)}</span>
-      <span className="text-[11.5px] text-dim font-mono truncate">{entry.isDrive ? '' : modeToString(entry.mode)}</span>
-      {isRemote && (
+      <span className="text-right text-[12px] text-muted tabular-nums whitespace-nowrap">{entry.isDir ? '' : formatBytes(entry.size)}</span>
+      {cols.mtime && <span className="text-[12px] text-muted tabular-nums truncate">{entry.isDrive ? '' : formatDate(entry.mtime)}</span>}
+      {cols.mode && <span className="text-[11.5px] text-dim font-mono truncate">{entry.isDrive ? '' : modeToString(entry.mode)}</span>}
+      {cols.owner && (
         <span className="text-[12px] text-dim truncate">
           {entry.owner ?? ''}
           {entry.group ? <span className="text-dim/70">:{entry.group}</span> : null}

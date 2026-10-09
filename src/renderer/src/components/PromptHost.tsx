@@ -107,7 +107,8 @@ function PasswordDialog({ p, done }: { p: PasswordPrompt; done: Done }) {
         }}
         className="space-y-3"
       >
-        {p.reason && <p className={`text-[12.5px] ${p.retry ? 'text-danger' : 'text-muted'}`}>{p.reason}</p>}
+        {/* The first sudo prompt only repeats user@host from the subtitle; show the reason once it says something new */}
+        {p.reason && p.retry && <p className="text-[12.5px] text-danger">{p.reason}</p>}
         <Field label={t.prompts.password.label}>
           <div className="relative">
             <Lock size={14} className="absolute left-2.5 top-2.5 text-dim" />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { LoaderCircle, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
@@ -159,6 +159,7 @@ export function Modal({
   closable?: boolean
 }) {
   const t = useT()
+  const titleId = useId()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -184,12 +185,15 @@ export function Modal({
         ref={ref}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         className="card modal-in flex flex-col max-h-[85vh]"
         style={{ width, maxWidth: 'calc(100vw - 32px)', boxShadow: 'var(--shadow)' }}
       >
         <div className="flex items-start gap-3 px-5 pt-4 pb-3">
           <div className="min-w-0 flex-1">
-            <h2 className="text-[15px] font-semibold leading-tight">{title}</h2>
+            <h2 id={titleId} className="text-[15px] font-semibold leading-tight">
+              {title}
+            </h2>
             {subtitle && <div className="text-[12.5px] text-muted mt-1">{subtitle}</div>}
           </div>
           {closable && onClose && (

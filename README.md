@@ -88,6 +88,7 @@ If you launch from a VS Code terminal and the window never appears, unset the `E
 | Ctrl+Tab | Next tab |
 | Ctrl+, | Settings |
 | Tab | Other pane |
+| F1, Ctrl+/ | All keyboard shortcuts |
 
 On macOS, Cmd works in place of Ctrl.
 

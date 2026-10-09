@@ -14,7 +14,10 @@
   --border-strong: #2f3d52;
   --text: #e6eaf0;
   --text-muted: #9aa8bb;
-  --text-dim: #647389;
+  /* dim text stays at 4.5:1+ on surface and surface-2 (WCAG AA) */
+  --text-dim: #7d8ca2;
+  /* placeholders stay lighter than real values so an empty field reads as empty */
+  --text-placeholder: #647389;
   --accent: #22d3ee;
   --accent-strong: #06b6d4;
   --accent-soft: rgba(34, 211, 238, 0.12);
@@ -23,6 +26,8 @@
   --warning: #fbbf24;
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
+  /* filled danger buttons: white text needs a deeper red than the text color */
+  --danger-solid: #dc2626;
   --selection: rgba(34, 211, 238, 0.14);
   --selection-strong: rgba(34, 211, 238, 0.24);
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
@@ -43,17 +48,20 @@
   --border-strong: #c3ccd9;
   --text: #0f172a;
   --text-muted: #4b5a6e;
-  --text-dim: #8794a7;
-  --accent: #0891b2;
-  --accent-strong: #0e7490;
-  --accent-soft: rgba(8, 145, 178, 0.1);
+  --text-dim: #5f6c80;
+  --text-placeholder: #8794a7;
+  /* darker cyan, amber and green than the dark theme: text and white-on-accent reach 4.5:1 on white */
+  --accent: #0e7490;
+  --accent-strong: #155e75;
+  --accent-soft: rgba(14, 116, 144, 0.1);
   --accent-fg: #ffffff;
-  --success: #059669;
-  --warning: #d97706;
-  --danger: #dc2626;
-  --danger-soft: rgba(220, 38, 38, 0.1);
-  --selection: rgba(8, 145, 178, 0.1);
-  --selection-strong: rgba(8, 145, 178, 0.2);
+  --success: #047857;
+  --warning: #b45309;
+  --danger: #c81e1e;
+  --danger-soft: rgba(200, 30, 30, 0.08);
+  --danger-solid: #c81e1e;
+  --selection: rgba(14, 116, 144, 0.1);
+  --selection-strong: rgba(14, 116, 144, 0.2);
   --shadow: 0 18px 50px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
   --scrollbar: #cbd3de;
   --scrollbar-hover: #aeb9c8;
@@ -83,8 +91,9 @@
   --color-selection: var(--selection);
   --color-selection-strong: var(--selection-strong);
   --color-folder: var(--folder);
-  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
-  --font-mono: 'Cascadia Code', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Inter, Ubuntu, Cantarell, sans-serif;
+  /* platform monospace before generic fallbacks: Courier New on macOS and Linux looked like a typewriter */
+  --font-mono: 'Cascadia Code', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', monospace;
   --radius-md: 8px;
   --radius-lg: 12px;
 }
@@ -154,6 +163,9 @@ textarea {
   @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 h-8 text-[13px] font-medium transition-colors select-none whitespace-nowrap;
   @apply disabled:opacity-50 disabled:pointer-events-none;
 }
+.btn:active {
+  transform: translateY(0.5px);
+}
 .btn-primary {
   background: var(--accent);
   color: var(--accent-fg);
@@ -177,7 +189,7 @@ textarea {
   color: var(--text);
 }
 .btn-danger {
-  background: var(--danger);
+  background: var(--danger-solid);
   color: #fff;
 }
 .btn-danger:hover {
@@ -194,7 +206,7 @@ textarea {
   color: var(--text);
 }
 .input::placeholder {
-  color: var(--text-dim);
+  color: var(--text-placeholder);
 }
 .input:focus {
   border-color: var(--accent);
@@ -242,6 +254,13 @@ textarea {
 .file-row:hover:not(.selected) {
   background: var(--surface-2);
 }
+/* The pane without focus keeps its selection, shown in neutral grey */
+.pane-inactive .file-row.selected {
+  background: var(--surface-3);
+}
+.pane-inactive .file-row.cursor {
+  box-shadow: none;
+}
 .file-row.drop-target {
   background: var(--selection-strong);
   box-shadow: inset 0 0 0 1px var(--accent);
@@ -269,6 +288,25 @@ textarea {
   border-radius: 999px;
   background: var(--accent);
   transition: width 0.25s ease;
+}
+
+/* Indeterminate bar for folder listings that take a moment */
+.loading-bar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  animation: loading-bar-in 0.2s ease 0.15s both;
+}
+.loading-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: var(--accent);
+  border-radius: 999px;
+  animation: loading-bar-slide 1.1s ease-in-out infinite;
 }
 
 }
@@ -359,4 +397,31 @@ textarea {
 .monaco-editor .margin,
 .monaco-editor-background {
   background-color: var(--surface) !important;
+}
+
+@keyframes loading-bar-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes loading-bar-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

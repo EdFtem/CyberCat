@@ -86,7 +86,7 @@ export function EditorView({ sid }: { sid: string }) {
             onMount={onMount}
             loading={<Spinner size={22} />}
             options={{
-              fontFamily: 'Cascadia Code, JetBrains Mono, Consolas, monospace',
+              fontFamily: "'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
               fontSize: 13,
               lineHeight: 20,
               minimap: { enabled: false },

@@ -342,6 +342,12 @@ module.exports = ({ win, app }) => {
       await shot('09-settings')
       await escape()
       await sleep(300)
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'F1' })
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'F1' })
+      await sleep(600)
+      await shot('09b-shortcuts')
+      await escape()
+      await sleep(300)
 
       // ssh config import on the home tab
       await clickByText('header nav button', M.titleBar.connections)
@@ -353,12 +359,25 @@ module.exports = ({ win, app }) => {
       await escape()
       await sleep(300)
 
-      // Light theme via the title bar button
+      // Light theme via the title bar button, on the home tab and in the session
       await click(byTitle(M.titleBar.lightTheme))
       await sleep(1000)
       await shot('11-light')
+      await js(`document.querySelectorAll('header nav button')[1].click()`)
+      await sleep(800)
+      await shot('11b-light-session')
       await click(byTitle(M.titleBar.darkTheme))
       await sleep(400)
+
+      // Small window: secondary file columns give way to the name
+      const [w0, h0] = win.getSize()
+      win.setSize(1000, 680)
+      await sleep(900)
+      await shot('11c-narrow')
+      win.setSize(w0, h0)
+      await sleep(600)
+      await clickByText('header nav button', M.titleBar.connections)
+      await sleep(300)
 
       // Language switch in Settings: the UI and main-process messages follow without a restart
       const other = LANG === 'en' ? 'uk' : 'en'

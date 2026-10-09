@@ -39,6 +39,7 @@ export const pane: typeof en = {
 
   // Footer
   itemsOf: (n, total) => `${items(n)} з ${total}`,
+  itemsHidden: (n, hidden) => `${items(n)} · приховано ${hidden}`,
   selectedCount: (n) => `Вибрано ${n}`,
   diskFree: (free) => `Вільно ${free}`,
   diskFreeOf: (free, total) => `Вільно ${free} з ${total}`,

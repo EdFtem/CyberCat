@@ -40,6 +40,7 @@ export const pane = {
 
   // Footer
   itemsOf: (n: number, total: number) => `${n} of ${total} ${pluralEn(total, 'item', 'items')}`,
+  itemsHidden: (n: number, hidden: number) => `${items(n)} · ${hidden} hidden`,
   selectedCount: (n: number) => `${n} selected`,
   diskFree: (free: string) => `${free} free`,
   diskFreeOf: (free: string, total: string) => `${free} free of ${total}`,

@@ -64,7 +64,7 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
     if (r && p.startsWith(r)) {
       const rest = p.slice(r.length).replace(/^[\\/]/, '')
       const dir = lib.dirname(rest)
-      return dir === '.' || dir === '' ? '' : dir
+      return dir === '.' || dir === '' || dir === '/' || dir === '\\' ? '' : dir
     }
     return lib.dirname(p)
   }
@@ -133,7 +133,7 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
               <FileIcon entry={hit.entry} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-[13px] truncate">{hit.entry.name}</span>
+                  <span className="text-[13px] truncate">{highlight(hit.entry.name, name, caseSensitive)}</span>
                   <span className="text-[11.5px] text-dim font-mono truncate">{relative(hit.entry.path)}</span>
                 </div>
                 {hit.text !== undefined && (
@@ -143,7 +143,7 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
                   </div>
                 )}
               </div>
-              <span className="text-[11.5px] text-dim tabular-nums shrink-0 w-[150px] text-right">
+              <span className="text-[11.5px] text-dim tabular-nums shrink-0 whitespace-nowrap text-right">
                 {hit.entry.isDir ? t.common.folder : formatBytes(hit.entry.size)}
                 {hit.entry.mtime ? ` · ${formatDate(hit.entry.mtime)}` : ''}
               </span>
@@ -159,5 +159,20 @@ export function SearchDialog({ sessionId, pane, close }: { sessionId: string; pa
           ))}
       </div>
     </Modal>
+  )
+}
+
+/** Marks the searched substring in a file name; wildcard patterns are left as they are */
+function highlight(fileName: string, query: string, caseSensitive: boolean): React.ReactNode {
+  const q = query.trim()
+  if (!q || /[*?]/.test(q)) return fileName
+  const i = caseSensitive ? fileName.indexOf(q) : fileName.toLowerCase().indexOf(q.toLowerCase())
+  if (i < 0) return fileName
+  return (
+    <>
+      {fileName.slice(0, i)}
+      <mark className="bg-accent-soft text-accent rounded-sm">{fileName.slice(i, i + q.length)}</mark>
+      {fileName.slice(i + q.length)}
+    </>
   )
 }

@@ -107,6 +107,7 @@ export type Dialog =
   | { kind: 'command'; sessionId: string; title: string; cmd: string }
   | { kind: 'dockerInspect'; sessionId: string; container: DockerContainer }
   | { kind: 'about' }
+  | { kind: 'shortcuts' }
 
 export interface ClipboardState {
   sid: string
@@ -756,8 +757,8 @@ export const useApp = create<AppStore>((set, get) => ({
 
   pushToast(t) {
     const id = t.id ?? uid()
-    set((s) => ({ toasts: [...s.toasts.filter((x) => x.id !== id), { ...t, id }] }))
-    window.setTimeout(() => get().dismissToast(id), t.kind === 'error' ? 9000 : 5000)
+    // Toasts dismiss themselves (ToastHost), so hovering one can pause it
+    set((s) => ({ toasts: [...s.toasts.filter((x) => x.id !== id), { ...t, id }].slice(-5) }))
   },
 
   dismissToast(id) {

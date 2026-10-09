@@ -36,6 +36,12 @@ export default function App() {
         const next = all[(idx + (e.shiftKey ? -1 : 1) + all.length) % all.length]
         setActiveTab(next)
       }
+      // F1 and Ctrl+/ keep their editor meanings (command palette, comment) inside Monaco
+      const inEditor = !!(e.target as HTMLElement | null)?.closest?.('.monaco-editor')
+      if (!inEditor && (e.key === 'F1' || (ctrl && e.key === '/'))) {
+        e.preventDefault()
+        if (!dialog) openDialog({ kind: 'shortcuts' })
+      }
       if (ctrl && e.key === ',') {
         e.preventDefault()
         if (!dialog) openDialog({ kind: 'settings' })
@@ -69,7 +75,12 @@ export default function App() {
             <SessionView key={id} sid={id} visible={activeTab === id} />
           ))}
         </div>
-        {transfersOpen && <TransfersPanel />}
+        {/* Sessions show the panel above their status bar; the home tab shows it here */}
+        {transfersOpen && activeTab === 'home' && (
+          <div className="p-2 pt-0">
+            <TransfersPanel />
+          </div>
+        )}
       </div>
       <PromptHost />
       <DialogHost />

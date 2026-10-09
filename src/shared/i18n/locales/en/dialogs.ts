@@ -33,6 +33,45 @@ export const dialogs = {
   propLocalComputer: 'Local computer',
   propServer: 'Server',
 
+  shortcutsTitle: 'Keyboard shortcuts',
+  shortcutGroups: {
+    navigation: 'Navigation',
+    files: 'Files',
+    transfer: 'Transfers and clipboard',
+    views: 'Panels and views',
+    app: 'App'
+  },
+  shortcuts: {
+    openUp: 'Open / go up',
+    switchPane: 'Switch pane',
+    editPath: 'Edit path',
+    filter: 'Filter',
+    search: 'Search in the current folder',
+    hidden: 'Show or hide hidden files',
+    refresh: 'Refresh',
+    rename: 'Rename',
+    openEditor: 'Open in the editor',
+    externalEditor: 'Open in an external editor',
+    newFolder: 'New folder',
+    newFile: 'New file',
+    delete: 'Delete',
+    copyPath: 'Copy path',
+    copyOther: 'Copy to the other pane',
+    moveOther: 'Move to the other pane',
+    moveTo: 'Move to folder…',
+    clipCopy: 'Copy to clipboard',
+    clipCut: 'Cut to clipboard',
+    clipPaste: 'Paste',
+    terminal: 'Terminal',
+    editor: 'Editor / files',
+    docker: 'Docker',
+    save: 'Save the file in the editor',
+    nextTab: 'Next tab',
+    home: 'Connections tab',
+    settings: 'Settings',
+    shortcuts: 'This list'
+  },
+
   aboutTitle: 'About CyberCat',
   aboutDescription: 'Graphical SSH/SFTP file manager. Electron, React, ssh2, Monaco, xterm.js.'
 }

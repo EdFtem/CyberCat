@@ -5,11 +5,12 @@ import { selectedEntries } from '@/lib/ops'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
-import { Button, IconButton, Spinner, StatusDot, Badge } from '../ui'
+import { Button, Spinner, StatusDot, Badge } from '../ui'
 import { FilePane } from '../pane/FilePane'
 import { EditorView } from '../editor/EditorView'
 import { TerminalPanel } from '../terminal/TerminalPanel'
 import { DockerView } from '../docker/DockerView'
+import { TransfersPanel } from '../transfers/TransfersPanel'
 
 const SPLIT_KEY = 'cc.split'
 const TERM_KEY = 'cc.termHeight'
@@ -32,6 +33,7 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
   const toggleTerminal = useApp((s) => s.toggleTerminal)
   const setEditorVisible = useApp((s) => s.setEditorVisible)
   const setDockerOpen = useApp((s) => s.setDockerOpen)
+  const transfersOpen = useApp((s) => s.transfersOpen)
   const [split, setSplit] = useState(() => readNumber(SPLIT_KEY, 0.5))
   const [termHeight, setTermHeight] = useState(() => readNumber(TERM_KEY, 260))
   const [dragging, setDragging] = useState<'split' | 'term' | null>(null)
@@ -191,6 +193,12 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
             </div>
           </>
         )}
+
+        {transfersOpen && visible && (
+          <div className="mt-2">
+            <TransfersPanel />
+          </div>
+        )}
       </div>
 
       {/* Status bar */}
@@ -208,17 +216,47 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
         )}
         <span className="flex-1" />
         {ui.docs.length > 0 && (
-          <button type="button" className={cn('inline-flex items-center gap-1.5 hover:text-text', ui.editorVisible && 'text-accent')} onClick={() => setEditorVisible(sid, !ui.editorVisible)} title={t.session.editorTitle}>
+          <StatusButton title={t.session.editorTitle} active={ui.editorVisible} onClick={() => setEditorVisible(sid, !ui.editorVisible)}>
             <Code2 size={13} /> {t.session.editorFiles(ui.docs.length)}
-          </button>
+          </StatusButton>
         )}
-        <IconButton size={22} title="Docker (Ctrl+Shift+D)" active={ui.dockerOpen} onClick={() => setDockerOpen(sid, !ui.dockerOpen)} disabled={!connected || !session.hasShell}>
-          <Container size={13} />
-        </IconButton>
-        <IconButton size={22} title={t.session.terminalTitle} active={ui.terminalOpen} onClick={() => toggleTerminal(sid)} disabled={!connected}>
-          <TerminalIcon size={13} />
-        </IconButton>
+        <StatusButton title="Docker (Ctrl+Shift+D)" active={ui.dockerOpen} onClick={() => setDockerOpen(sid, !ui.dockerOpen)} disabled={!connected || !session.hasShell}>
+          <Container size={13} /> Docker
+        </StatusButton>
+        <StatusButton title={t.session.terminalTitle} active={ui.terminalOpen} onClick={() => toggleTerminal(sid)} disabled={!connected}>
+          <TerminalIcon size={13} /> {t.terminal.title}
+        </StatusButton>
       </div>
     </div>
+  )
+}
+
+/** Status bar toggle with an icon and a label */
+function StatusButton({
+  active,
+  disabled,
+  title,
+  onClick,
+  children
+}: {
+  active?: boolean
+  disabled?: boolean
+  title: string
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-[11.5px] transition-colors disabled:opacity-40 disabled:pointer-events-none',
+        active ? 'bg-accent-soft text-accent' : 'text-muted hover:text-text hover:bg-surface-3'
+      )}
+    >
+      {children}
+    </button>
   )
 }

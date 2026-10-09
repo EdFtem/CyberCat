@@ -16,7 +16,7 @@ import {
   Laptop,
   Pencil,
   RefreshCw,
-  Search,
+  ListFilter,
   Server,
   ShieldCheck,
   SquareArrowOutUpRight,
@@ -74,6 +74,8 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
 
   const selected = useMemo(() => (paneState ? selectedEntries({ ...paneState, entries: visible }) : []), [paneState, visible])
   const selectedSize = selected.reduce((s, e) => s + (e.isDir ? 0 : e.size), 0)
+  const sudoActive = isRemote && !!session?.sudo
+  const hiddenCount = showHidden || !paneState ? 0 : paneState.entries.filter((e) => e.name.startsWith('.') && !e.isDrive).length
 
   if (!paneState) return null
 
@@ -174,7 +176,12 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
 
   return (
     <section
-      className={cn('flex flex-col min-w-0 flex-1 bg-surface rounded-lg border transition-colors', active ? 'border-border-strong' : 'border-border', dragOver && 'pane-drop')}
+      className={cn(
+        'relative flex flex-col min-w-0 flex-1 bg-surface rounded-lg border transition-colors',
+        sudoActive ? 'border-danger/60' : active ? 'border-accent/45' : 'border-border',
+        !active && 'pane-inactive',
+        dragOver && 'pane-drop'
+      )}
       onDragOver={(e) => {
         if (!canDrop(e)) return
         e.preventDefault()
@@ -214,6 +221,9 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         }
       }}
     >
+      {/* sudo mode: a red edge so root access is hard to miss */}
+      {sudoActive && <div className="absolute inset-x-0 top-0 h-[2px] rounded-t-lg bg-danger" />}
+
       {/* Header */}
       <div className="flex items-center gap-1.5 px-2 h-10 border-b border-border">
         <span
@@ -311,13 +321,13 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
             setTimeout(() => document.getElementById(`filter-${sid}-${pane}`)?.focus(), 0)
           }}
         >
-          <Search size={15} />
+          <ListFilter size={15} />
         </IconButton>
       </div>
 
       {paneState.filterOpen && (
         <div className="flex items-center gap-2 px-2 h-9 border-b border-border bg-surface-2">
-          <Search size={14} className="text-dim" />
+          <ListFilter size={14} className="text-dim" />
           <input
             id={`filter-${sid}-${pane}`}
             className="input h-7 flex-1"
@@ -350,7 +360,11 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
       {/* Footer */}
       <div className="flex items-center gap-3 px-3 h-7 border-t border-border text-[11.5px] text-dim">
         <span>
-          {paneState.entries.length !== visible.length ? t.pane.itemsOf(visible.length, paneState.entries.length) : t.common.items(visible.length)}
+          {paneState.filter.trim()
+            ? t.pane.itemsOf(visible.length, paneState.entries.length)
+            : hiddenCount > 0
+              ? t.pane.itemsHidden(visible.length, hiddenCount)
+              : t.common.items(visible.length)}
         </span>
         {selected.length > 0 && (
           <span className="text-muted">

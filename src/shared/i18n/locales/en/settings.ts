@@ -20,5 +20,5 @@ export const settings = {
     'One per line: <code>Name = command</code>. Placeholders: <code>%f</code> selected files (full paths), <code>%n</code> names only, <code>%d</code> current folder. They appear in the context menu of the server pane.',
   customCommandsPlaceholder:
     'Folder sizes = du -sh %f\nSet 644 recursively = chmod -R 644 %f\nRestart nginx = sudo systemctl restart nginx && systemctl status nginx --no-pager',
-  shortcuts: 'Shortcuts: F2 rename · F4 edit · F5 copy · F7 new folder · Del delete · Ctrl+L path · Ctrl+` terminal'
+  shortcutsButton: 'Keyboard shortcuts'
 }

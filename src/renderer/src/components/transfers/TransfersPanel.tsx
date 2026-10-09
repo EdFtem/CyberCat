@@ -5,7 +5,7 @@ import { cn } from '@/lib/cn'
 import type { TransferItem } from '@shared/types'
 import type { Messages } from '@shared/i18n'
 import { useT } from '@/lib/i18n'
-import { Button, IconButton, EmptyState, Spinner } from '../ui'
+import { Button, IconButton, Spinner } from '../ui'
 
 const api = window.api
 
@@ -20,7 +20,8 @@ export function TransfersPanel() {
   const doneBytes = transfers.items.filter((i) => i.status !== 'skipped' && i.status !== 'cancelled').reduce((s, i) => s + Math.min(i.transferred, i.size), 0)
 
   return (
-    <div className="flex flex-col h-[260px] shrink-0 border-t border-border bg-surface">
+    // Sized by its content up to a cap, so an empty queue does not eat the file panes
+    <div className="card flex flex-col max-h-[300px] shrink-0 overflow-hidden">
       <div className="flex items-center gap-3 px-3 h-9 border-b border-border">
         <span className="text-[13px] font-medium">{t.transfers.title}</span>
         <span className="text-[12px] text-dim">
@@ -46,8 +47,13 @@ export function TransfersPanel() {
           <ChevronDown size={16} />
         </IconButton>
       </div>
-      <div className="flex-1 overflow-auto">
-        {!items.length && <EmptyState title={t.transfers.emptyTitle} description={t.transfers.emptyDescription} />}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {!items.length && (
+          <div className="px-4 py-4 text-center">
+            <div className="text-[13px] font-medium">{t.transfers.emptyTitle}</div>
+            <div className="text-[12px] text-dim mt-0.5">{t.transfers.emptyDescription}</div>
+          </div>
+        )}
         {items.map((it) => (
           <TransferRow key={it.id} it={it} />
         ))}

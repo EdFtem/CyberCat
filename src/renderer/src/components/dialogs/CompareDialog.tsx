@@ -193,10 +193,19 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
         {!busy && !res && <div className="p-6 text-center text-[12.5px] text-dim">{t.compare.hint}</div>}
         {!busy && res && res.entries.length === 0 && <div className="p-6 text-center text-[12.5px] text-success">{t.compare.identical}</div>}
         {!busy && res && res.entries.length > 0 && (
-          <table className="w-full text-[12.5px]">
+          // Fixed layout: the path column takes what is left and truncates, so Action never gets clipped
+          <table className="w-full table-fixed text-[12.5px]">
+            <colgroup>
+              <col className="w-9" />
+              <col />
+              <col className="w-[190px]" />
+              <col className="w-[190px]" />
+              <col className="w-[176px]" />
+              <col className="w-[128px]" />
+            </colgroup>
             <thead className="sticky top-0 bg-surface-2 text-[11px] uppercase tracking-wide text-dim">
               <tr>
-                <th className="px-2 py-1.5 text-left w-8">
+                <th className="px-2 py-1.5 text-left">
                   <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(res.entries.map((e) => e.rel)))} />
                 </th>
                 <th className="px-2 py-1.5 text-left">{t.compare.colPath}</th>
@@ -216,7 +225,7 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
                     <td className="px-2 py-1">
                       <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={on} onChange={() => toggle(e.rel)} />
                     </td>
-                    <td className="px-2 py-1 font-mono truncate max-w-[320px]" title={e.rel}>
+                    <td className="px-2 py-1 font-mono truncate" title={e.rel}>
                       {e.rel}
                       {e.kind === 'dir' && <span className="text-dim">/</span>}
                     </td>
@@ -226,12 +235,12 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
                     <td className="px-2 py-1 text-right tabular-nums text-muted whitespace-nowrap">
                       {e.remote ? (e.kind === 'dir' ? t.common.folder : `${formatBytes(e.remote.size)} · ${formatDate(e.remote.mtime)}`) : <span className="text-dim">{t.compare.missing}</span>}
                     </td>
-                    <td className="px-2 py-1 whitespace-nowrap">
+                    <td className="px-2 py-1 whitespace-nowrap truncate">
                       {e.status === 'only-local' && <Badge tone="accent">{t.compare.onlyLocal}</Badge>}
                       {e.status === 'only-remote' && <Badge tone="success">{t.compare.onlyRemote}</Badge>}
                       {e.status === 'different' && <Badge tone="warning">{reasonLabel(t, e)}</Badge>}
                     </td>
-                    <td className={cn('px-2 py-1 whitespace-nowrap', al.cls)}>
+                    <td className={cn('px-2 py-1 whitespace-nowrap truncate', al.cls)}>
                       <span className="inline-flex items-center gap-1">
                         {al.icon} {al.text(t)}
                       </span>

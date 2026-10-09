@@ -29,7 +29,7 @@ export function TerminalPanel({ sid }: { sid: string }) {
     let termId: string | undefined
 
     const term = new Terminal({
-      fontFamily: 'Cascadia Code, JetBrains Mono, Consolas, monospace',
+      fontFamily: "'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
       fontSize: 13,
       lineHeight: 1.2,
       cursorBlink: true,

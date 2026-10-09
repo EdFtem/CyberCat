@@ -74,18 +74,16 @@ export function TitleBar() {
       </nav>
 
       <div className="flex items-center gap-1 pl-2 no-drag">
-        <div className="relative">
-          <IconButton
-            title={t.titleBar.externalEdits}
-            active={editsOpen}
-            onClick={() => setEditsOpen((v) => !v)}
-            disabled={!extedits.length}
-          >
-            <PencilLine size={16} />
-            {extedits.length > 0 && <Dot count={extedits.length} tone={extedits.some((e) => e.status === 'error') ? 'danger' : 'accent'} />}
-          </IconButton>
-          {editsOpen && <ExternalEditsMenu onClose={() => setEditsOpen(false)} />}
-        </div>
+        {/* Shown only while files are open externally, like tunnels and watches */}
+        {extedits.length > 0 && (
+          <div className="relative">
+            <IconButton title={t.titleBar.externalEdits} active={editsOpen} onClick={() => setEditsOpen((v) => !v)}>
+              <PencilLine size={16} />
+              <Dot count={extedits.length} tone={extedits.some((e) => e.status === 'error') ? 'danger' : 'accent'} />
+            </IconButton>
+            {editsOpen && <ExternalEditsMenu onClose={() => setEditsOpen(false)} />}
+          </div>
+        )}
         {tunnels.length > 0 && (
           <div className="relative">
             <IconButton title={t.titleBar.tunnels} active={tunnelOpen} onClick={() => setTunnelOpen((v) => !v)}>

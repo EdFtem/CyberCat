@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Cat, FolderOpen, TriangleAlert } from 'lucide-react'
+import { Cat, FolderOpen, Keyboard, TriangleAlert } from 'lucide-react'
 import { useApp, type Dialog } from '@/store/app'
-import { Button, Checkbox, Field, Modal, Segmented } from '../ui'
+import { Button, Checkbox, Field, Kbd, Modal, Segmented } from '../ui'
 import { formatBytes, formatDateFull, formatNumber, modeToOctal, modeToString, parseOctal } from '@/lib/format'
 import { rich, useT } from '@/lib/i18n'
 import { LANGUAGES, type Lang, type Messages } from '@shared/i18n'
@@ -43,6 +43,8 @@ export function DialogHost() {
       return <DockerInspectDialog sessionId={dialog.sessionId} container={dialog.container} close={close} />
     case 'about':
       return <AboutDialog close={close} />
+    case 'shortcuts':
+      return <ShortcutsDialog close={close} />
     default:
       return null
   }
@@ -293,6 +295,7 @@ const code = (s: string): React.ReactNode => <span className="font-mono">{s}</sp
 function SettingsDialog({ close }: { close: () => void }) {
   const t = useT()
   const settings = useApp((s) => s.settings)
+  const openDialog = useApp((s) => s.openDialog)
   const update = useApp((s) => s.updateSettings)
   const [editor, setEditor] = useState(settings.externalEditor)
   const [agent, setAgent] = useState(settings.agentPath)
@@ -377,9 +380,100 @@ function SettingsDialog({ close }: { close: () => void }) {
             spellCheck={false}
           />
         </Field>
-        <div className="pt-2 border-t border-border flex items-center justify-between text-[12px] text-dim">
-          <span>{t.settings.shortcuts}</span>
+        <div className="pt-3 border-t border-border">
+          <Button variant="ghost" size="sm" icon={<Keyboard size={14} />} onClick={() => openDialog({ kind: 'shortcuts' })}>
+            {t.settings.shortcutsButton}
+            <Kbd>F1</Kbd>
+          </Button>
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** Every keyboard shortcut in one place, grouped the way people look for them */
+function ShortcutsDialog({ close }: { close: () => void }) {
+  const t = useT()
+  const s = t.dialogs.shortcuts
+  const g = t.dialogs.shortcutGroups
+  const groups: [string, [string[], string][]][] = [
+    [
+      g.navigation,
+      [
+        [['Enter', 'Backspace'], s.openUp],
+        [['Tab'], s.switchPane],
+        [['Ctrl+L'], s.editPath],
+        [['Ctrl+F'], s.filter],
+        [['Ctrl+Shift+F'], s.search],
+        [['Ctrl+H'], s.hidden],
+        [['Ctrl+R'], s.refresh]
+      ]
+    ],
+    [
+      g.files,
+      [
+        [['F2'], s.rename],
+        [['F3', 'F4'], s.openEditor],
+        [['Shift+F4'], s.externalEditor],
+        [['F7'], s.newFolder],
+        [['Ctrl+Shift+N'], s.newFile],
+        [['F8', 'Del'], s.delete],
+        [['Ctrl+Shift+C'], s.copyPath]
+      ]
+    ],
+    [
+      g.transfer,
+      [
+        [['F5'], s.copyOther],
+        [['F6'], s.moveOther],
+        [['Shift+F6'], s.moveTo],
+        [['Ctrl+C'], s.clipCopy],
+        [['Ctrl+X'], s.clipCut],
+        [['Ctrl+V'], s.clipPaste]
+      ]
+    ],
+    [
+      g.views,
+      [
+        [['Ctrl+`'], s.terminal],
+        [['Ctrl+E'], s.editor],
+        [['Ctrl+Shift+D'], s.docker],
+        [['Ctrl+S'], s.save]
+      ]
+    ],
+    [
+      g.app,
+      [
+        [['Ctrl+Tab'], s.nextTab],
+        [['Ctrl+T'], s.home],
+        [['Ctrl+,'], s.settings],
+        [['F1', 'Ctrl+/'], s.shortcuts]
+      ]
+    ]
+  ]
+  return (
+    <Modal title={t.dialogs.shortcutsTitle} width={760} onClose={close} footer={<Button variant="primary" onClick={close}>{t.common.close}</Button>}>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+        {groups.map(([title, rows]) => (
+          <section key={title}>
+            <h3 className="text-[11px] uppercase tracking-wide text-dim mb-1.5">{title}</h3>
+            <dl>
+              {rows.map(([keys, label]) => (
+                <div key={label} className="flex items-center justify-between gap-3 py-1 border-b border-border/60 last:border-b-0">
+                  <dt className="text-[12.5px] min-w-0 truncate">{label}</dt>
+                  <dd className="flex items-center gap-1 shrink-0">
+                    {keys.map((k, i) => (
+                      <span key={k} className="inline-flex items-center gap-1">
+                        {i > 0 && <span className="text-dim text-[11px]">/</span>}
+                        <Kbd>{k}</Kbd>
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
       </div>
     </Modal>
   )

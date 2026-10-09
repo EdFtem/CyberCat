@@ -22,5 +22,5 @@ export const settings: typeof en = {
     'По одній на рядок: <code>Назва = команда</code>. Плейсхолдери: <code>%f</code> вибрані файли (повні шляхи), <code>%n</code> лише назви, <code>%d</code> поточна тека. З’являються у контекстному меню серверної панелі.',
   customCommandsPlaceholder:
     'Розмір тек = du -sh %f\nПрава рекурсивно 644 = chmod -R 644 %f\nПерезапустити nginx = sudo systemctl restart nginx && systemctl status nginx --no-pager',
-  shortcuts: 'Гарячі клавіші: F2 перейменувати · F4 редагувати · F5 копіювати · F7 нова тека · Del видалити · Ctrl+L шлях · Ctrl+` термінал'
+  shortcutsButton: 'Гарячі клавіші'
 }

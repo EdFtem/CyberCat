@@ -33,6 +33,45 @@ export const dialogs: typeof en = {
   propLocalComputer: 'Локальний комп’ютер',
   propServer: 'Сервер',
 
+  shortcutsTitle: 'Гарячі клавіші',
+  shortcutGroups: {
+    navigation: 'Навігація',
+    files: 'Файли',
+    transfer: 'Передачі та буфер обміну',
+    views: 'Панелі й режими',
+    app: 'Застосунок'
+  },
+  shortcuts: {
+    openUp: 'Відкрити / вгору',
+    switchPane: 'Інша панель',
+    editPath: 'Редагувати шлях',
+    filter: 'Фільтр',
+    search: 'Пошук у поточній теці',
+    hidden: 'Показати або сховати приховані файли',
+    refresh: 'Оновити',
+    rename: 'Перейменувати',
+    openEditor: 'Відкрити у редакторі',
+    externalEditor: 'Відкрити в зовнішньому редакторі',
+    newFolder: 'Нова тека',
+    newFile: 'Новий файл',
+    delete: 'Видалити',
+    copyPath: 'Копіювати шлях',
+    copyOther: 'Копіювати на іншу панель',
+    moveOther: 'Перемістити на іншу панель',
+    moveTo: 'Перемістити в теку…',
+    clipCopy: 'Копіювати в буфер',
+    clipCut: 'Вирізати в буфер',
+    clipPaste: 'Вставити',
+    terminal: 'Термінал',
+    editor: 'Редактор / файли',
+    docker: 'Docker',
+    save: 'Зберегти файл у редакторі',
+    nextTab: 'Наступна вкладка',
+    home: 'Вкладка підключень',
+    settings: 'Налаштування',
+    shortcuts: 'Цей список'
+  },
+
   aboutTitle: 'Про CyberCat',
   aboutDescription: 'Графічний SSH/SFTP файловий менеджер. Electron, React, ssh2, Monaco, xterm.js.'
 }
