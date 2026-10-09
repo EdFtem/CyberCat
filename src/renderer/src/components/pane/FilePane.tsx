@@ -224,7 +224,11 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
           {isRemote ? <Server size={13} /> : <Laptop size={13} />}
           {isRemote ? session?.host ?? 'Сервер' : 'Локально'}
         </span>
-        {isRemote && session?.sudo && <Badge tone="danger">root</Badge>}
+        {isRemote && session?.sudo && (
+          <span title={session.sudoFiles ? 'Файли й команди виконуються від root' : 'Команди від root, файлові операції від вашого користувача: на сервері немає sftp-server'}>
+            <Badge tone={session.sudoFiles ? 'danger' : 'warning'}>{session.sudoFiles ? 'root' : 'root: команди'}</Badge>
+          </span>
+        )}
         <IconButton title="Назад" onClick={() => goBack(sid, pane)} disabled={paneState.historyIndex <= 0}>
           <ChevronLeft size={16} />
         </IconButton>

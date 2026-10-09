@@ -60,8 +60,10 @@ export interface SessionInfo {
   error?: string
   homeDir?: string
   hasShell: boolean
-  /** Активний sudo-режим: операції виконуються з правами root */
+  /** Активний sudo-режим: команди виконуються з правами root */
   sudo?: boolean
+  /** Файловий канал також від root (знайдено sftp-server) */
+  sudoFiles?: boolean
   color?: string
   startRemotePath?: string
   startLocalPath?: string

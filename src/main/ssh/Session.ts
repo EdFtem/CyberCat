@@ -4,6 +4,7 @@ import type { Duplex } from 'stream'
 import { Client, utils } from 'ssh2'
 import type { ClientChannel, ConnectConfig, ExecOptions, SFTPWrapper } from 'ssh2'
 import { prompt } from '../prompter'
+import { toast } from '../broadcast'
 import { profiles } from '../store/profiles'
 import { settings } from '../store/settings'
 import { fingerprint, hostKeys, parseKeyType } from './hostKeys'
@@ -54,8 +55,13 @@ const SFTP_SERVER_CANDIDATES = [
   '/usr/libexec/sftp-server',
   '/usr/lib/sftp-server',
   '/usr/libexec/ssh/sftp-server',
-  '/usr/local/libexec/sftp-server'
+  '/usr/local/libexec/sftp-server',
+  '/run/current-system/sw/libexec/sftp-server',
+  '/run/current-system/sw/libexec/openssh/sftp-server'
 ]
+
+/** Шлях до sftp-server: спершу з sshd_config (Subsystem sftp), потім типові місця */
+const FIND_SFTP_SERVER = `p=$(cat /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | awk 'tolower($1)=="subsystem" && tolower($2)=="sftp" {print $3; exit}'); if [ -n "$p" ] && [ "$p" != "internal-sftp" ] && [ -x "$p" ]; then echo "$p"; else for c in ${SFTP_SERVER_CANDIDATES.join(' ')}; do [ -x "$c" ] && echo "$c" && break; done; fi`
 
 /** Розбір ProxyJump: [user@]host[:port], кілька через кому */
 export function parseProxyJump(spec: string): { user?: string; host: string; port?: number }[] {
@@ -125,8 +131,9 @@ export class Session extends EventEmitter {
     return this.ready && !!this._sftp
   }
 
+  /** sudo увімкнено для команд; файловий канал root може бути відсутнім, якщо немає sftp-server */
   get sudoActive(): boolean {
-    return !!this.sudoState?.sftp
+    return !!this.sudoState
   }
 
   private setStatus(status: SessionStatus, error?: string): void {
@@ -456,7 +463,7 @@ export class Session extends EventEmitter {
   /** Увімкнути sudo-режим: окремий SFTP-канал із правами root та обгортка exec */
   async enableSudo(password?: string): Promise<void> {
     if (!this.ready || !this.client) throw new Error('Сесію не підключено')
-    if (this.sudoState?.sftp) return
+    if (this.sudoState) return
     if (!this.info.hasShell) throw new Error('sudo-режим потребує доступу до shell на сервері')
 
     const probe = await this.execRaw('sudo -n true 2>&1', 15_000)
@@ -488,12 +495,20 @@ export class Session extends EventEmitter {
       }
     }
 
-    const found = await this.execRaw(
-      `for p in ${SFTP_SERVER_CANDIDATES.join(' ')}; do [ -x "$p" ] && echo "$p" && break; done`,
-      15_000
-    )
+    const found = await this.execRaw(FIND_SFTP_SERVER, 15_000)
     const server = found.stdout.trim().split('\n')[0]?.trim()
-    if (!server) throw new Error('На сервері не знайдено sftp-server, sudo-режим недоступний')
+
+    if (!server) {
+      // Команди через sudo працюватимуть, але файловий канал root відкрити нема чим
+      this.sudoState = { mode, password: pw, server: '' }
+      this.patchInfo({ sudo: true, sudoFiles: false })
+      toast(
+        'warning',
+        'sudo увімкнено лише для команд',
+        'На сервері не знайдено sftp-server, тому файлові операції виконуються від вашого користувача. Docker, термінал і команди працюють від root.'
+      )
+      return
+    }
 
     let sftp: SFTPWrapper
     if (mode === 'nopasswd') {
@@ -512,11 +527,11 @@ export class Session extends EventEmitter {
     sftp.on('close', () => {
       if (this.sudoState?.sftp === sftp) {
         this.sudoState = undefined
-        this.patchInfo({ sudo: false })
+        this.patchInfo({ sudo: false, sudoFiles: false })
       }
     })
     this.sudoState = { mode, password: pw, sftp, server }
-    this.patchInfo({ sudo: true })
+    this.patchInfo({ sudo: true, sudoFiles: true })
   }
 
   disableSudo(): void {
@@ -528,12 +543,12 @@ export class Session extends EventEmitter {
     } catch {
       /* ignore */
     }
-    if (this.info.sudo) this.patchInfo({ sudo: false })
+    if (this.info.sudo) this.patchInfo({ sudo: false, sudoFiles: false })
   }
 
   private wrapSudo(cmd: string): { cmd: string; stdin?: string } {
     const s = this.sudoState
-    if (!s?.sftp) return { cmd }
+    if (!s) return { cmd }
     if (s.mode === 'nopasswd') return { cmd: `sudo -n sh -c ${shq(cmd)}` }
     return { cmd: `sudo -S -p '' sh -c ${shq(cmd)}`, stdin: `${s.password ?? ''}\n` }
   }
