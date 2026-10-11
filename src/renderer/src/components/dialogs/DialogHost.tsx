@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Cat, FolderOpen, Keyboard, TriangleAlert } from 'lucide-react'
+import { Cat, Download, FolderOpen, Keyboard, TriangleAlert } from 'lucide-react'
 import { useApp, type Dialog } from '@/store/app'
 import { Button, Checkbox, Field, Kbd, Modal, Segmented } from '../ui'
 import { formatBytes, formatDateFull, formatNumber, modeToOctal, modeToString, parseOctal } from '@/lib/format'
 import { rich, useT } from '@/lib/i18n'
+import { confirmInstallUpdate } from '@/lib/update'
+import { cn } from '@/lib/cn'
 import { LANGUAGES, type Lang, type Messages } from '@shared/i18n'
 import { FileIcon } from '@/lib/fileIcons'
 import { SearchDialog } from './SearchDialog'
@@ -321,6 +323,7 @@ function SettingsDialog({ close }: { close: () => void }) {
             />
           </Field>
         </div>
+        <UpdatesSection />
         <Field label={t.settings.externalEditor} hint={rich(t.settings.externalEditorHint, { code })}>
           <div className="flex gap-2">
             <input
@@ -388,6 +391,86 @@ function SettingsDialog({ close }: { close: () => void }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+/** Current version, update status and the auto-check switch. A div, not a Field: a label would forward clicks to its first button */
+function UpdatesSection() {
+  const t = useT()
+  const update = useApp((s) => s.update)
+  const autoUpdate = useApp((s) => s.settings.autoUpdate)
+  const updateSettings = useApp((s) => s.updateSettings)
+  const [checking, setChecking] = useState(false)
+  if (!update) return null
+  const u = t.updates
+  const v = update.version ?? ''
+  const line =
+    update.state === 'unsupported'
+      ? u.unsupported
+      : update.state === 'checking'
+        ? u.checking
+        : update.state === 'up-to-date'
+          ? u.upToDate
+          : update.state === 'available'
+            ? u.available(v)
+            : update.state === 'downloading'
+              ? u.downloading(v, update.percent ?? 0)
+              : update.state === 'downloaded'
+                ? u.downloaded(v)
+                : update.state === 'error'
+                  ? u.error(update.error ?? '')
+                  : ''
+  const check = async (): Promise<void> => {
+    setChecking(true)
+    try {
+      await window.api.update.check()
+    } finally {
+      setChecking(false)
+    }
+  }
+  return (
+    <div>
+      <div className="text-[12px] font-medium text-muted mb-1">{u.title}</div>
+      <div className="rounded-md border border-border bg-surface-2 p-3 space-y-2.5">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-medium">{u.version(update.currentVersion)}</div>
+            {line && (
+              <div
+                className={cn(
+                  'text-[12px] mt-0.5',
+                  update.state === 'error' ? 'text-danger' : update.state === 'available' || update.state === 'downloaded' ? 'text-accent' : 'text-dim'
+                )}
+              >
+                {line}
+              </div>
+            )}
+          </div>
+          {(update.state === 'available' || update.state === 'downloaded') && (
+            <Button size="sm" variant="ghost" onClick={() => void window.api.update.openRelease()}>
+              {u.whatsNew}
+            </Button>
+          )}
+          {update.state === 'downloaded' && (
+            <Button size="sm" variant="primary" onClick={confirmInstallUpdate}>
+              {u.restart}
+            </Button>
+          )}
+          {update.state === 'available' && (
+            <Button size="sm" variant="primary" icon={<Download size={13} />} onClick={() => void window.api.update.openRelease()}>
+              {u.download}
+            </Button>
+          )}
+          {update.state !== 'unsupported' && update.state !== 'available' && update.state !== 'downloaded' && update.state !== 'downloading' && (
+            <Button size="sm" loading={checking || update.state === 'checking'} onClick={() => void check()}>
+              {u.checkNow}
+            </Button>
+          )}
+        </div>
+        {update.state === 'available' && !update.canInstall && <p className="text-[12px] text-dim">{u.manualHint}</p>}
+        <Checkbox checked={autoUpdate} onChange={(on) => void updateSettings({ autoUpdate: on })} label={u.autoCheck} disabled={update.state === 'unsupported'} />
+      </div>
+    </div>
   )
 }
 

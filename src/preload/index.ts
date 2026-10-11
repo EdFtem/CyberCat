@@ -31,6 +31,12 @@ const api: Api = {
     setTitleBarOverlay: (o) => call('app:setTitleBarOverlay', o),
     getPathForFile: (f) => webUtils.getPathForFile(f)
   },
+  update: {
+    status: () => call('update:status'),
+    check: () => call('update:check'),
+    install: () => call('update:install'),
+    openRelease: () => call('update:openRelease')
+  },
   settings: {
     get: () => call('settings:get'),
     set: (patch) => call('settings:set', patch)
@@ -143,7 +149,8 @@ const api: Api = {
     tailData: (cb) => on('tail:data', cb),
     tailExit: (cb) => on('tail:exit', cb),
     watchUpdate: (cb) => on('watch:update', cb),
-    tunnelUpdate: (cb) => on('tunnel:update', cb)
+    tunnelUpdate: (cb) => on('tunnel:update', cb),
+    updateStatus: (cb) => on('update:status', cb)
   }
 }
 

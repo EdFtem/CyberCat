@@ -12,6 +12,30 @@ CyberCat is a WinSCP-style client for people who live in SSH all day. Connection
 
 The interface is available in **English** and **Ukrainian**, see [Languages](#languages).
 
+## Download
+
+Get the latest version from [Releases](https://github.com/EdFtem/CyberCat/releases/latest):
+
+| System | File |
+|---|---|
+| Windows 10 and 11 | `CyberCat-Setup-<version>.exe` (installer, updates itself) or `CyberCat-<version>-portable.exe` |
+| macOS, Apple Silicon | `CyberCat-<version>-mac-arm64.dmg` |
+| macOS, Intel | `CyberCat-<version>-mac-x64.dmg` |
+| Linux | `CyberCat-<version>-linux-*.AppImage` |
+
+The builds are not signed with paid certificates, so the first launch shows a warning:
+
+- **Windows:** SmartScreen says "Windows protected your PC". Click **More info**, then **Run anyway**.
+- **macOS:** drag CyberCat to Applications, then run `xattr -dr com.apple.quarantine /Applications/CyberCat.app` once. Without it, macOS reports the app as damaged.
+- **Linux:** make the file executable with `chmod +x CyberCat-*.AppImage` and run it.
+
+### Updates
+
+CyberCat checks [GitHub Releases](https://github.com/EdFtem/CyberCat/releases) shortly after it starts and then every six hours. You can turn this off or check manually in **Settings → Updates**.
+
+- **Windows installer and Linux AppImage:** the update downloads in the background. A **Restart to update** button appears in the title bar; if you don't press it, the update installs the next time you quit.
+- **macOS and the Windows portable version:** the app tells you that a new version is out and opens its download page. Install it over the old one. Automatic installs on macOS need an Apple Developer ID signature, which this project doesn't have yet.
+
 ## Features
 
 - **Connection profiles**: password, private key (OpenSSH, PuTTY `.ppk`, with passphrase), SSH agent (OpenSSH agent, Pageant). Passwords are stored encrypted through the OS keychain.
@@ -56,7 +80,8 @@ npm install
 npm run dev        # development with hot reload
 npm run build      # production build into out/
 npm start          # run the built app
-npm run dist       # package with electron-builder (Windows)
+npm run dist       # installers for the current OS into dist/
+npm run dist:dir   # unpacked app only, quicker for testing
 ```
 
 If you launch from a VS Code terminal and the window never appears, unset the `ELECTRON_RUN_AS_NODE` environment variable.

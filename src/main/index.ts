@@ -15,6 +15,7 @@ import { tunnels } from './tunnel/TunnelService'
 import { rejectAllPrompts } from './prompter'
 import { tr } from './i18n'
 import { settings } from './store/settings'
+import { updater } from './updater'
 
 const THEME_BG = { dark: '#0b0f17', light: '#f3f5f9' }
 const THEME_SYMBOL = { dark: '#cbd5e1', light: '#334155' }
@@ -75,6 +76,7 @@ nativeTheme.themeSource = settings.get().theme
 app.whenReady().then(() => {
   registerIpc()
   const win = createWindow()
+  updater.init()
 
   // Hook for automated UI checks: the script receives the window and app
   if (process.env.CYBERCAT_DEBUG_SCRIPT) {

@@ -189,6 +189,8 @@ export interface AppSettings {
   /** Custom commands, one per line: Name = command with %f %n %d */
   customCommands: string
   bookmarks: Bookmark[]
+  /** Look for new versions on GitHub Releases at startup and every few hours */
+  autoUpdate: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -200,7 +202,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   agentPath: '',
   transferConcurrency: 2,
   customCommands: '',
-  bookmarks: []
+  bookmarks: [],
+  autoUpdate: true
 }
 
 // Requests from main to the renderer (dialogs)
@@ -452,6 +455,22 @@ export interface DockerDiskUsage {
   active: number
   size: string
   reclaimable: string
+}
+
+// ---- Updates
+export type UpdateState = 'idle' | 'unsupported' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'downloaded' | 'error'
+
+export interface UpdateStatus {
+  state: UpdateState
+  currentVersion: string
+  /** Newest version found on GitHub Releases */
+  version?: string
+  /** Download progress, 0..100 */
+  percent?: number
+  /** The app downloads and installs updates itself; otherwise the user downloads the new version from the release page */
+  canInstall: boolean
+  releaseUrl: string
+  error?: string
 }
 
 // ---- Port tunnels

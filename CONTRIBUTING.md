@@ -84,6 +84,27 @@ cp out/shots/07d-compare.png docs/screenshot-compare.png
 
 The test opens the local pane in a small demo folder, so your own files do not end up in the pictures.
 
+## Releasing
+
+Installers are built by GitHub Actions and hosted on GitHub Releases, so releases cost nothing for this public repository.
+
+1. Bump the version: `npm version patch` (or `minor`, `major`). This commits `package.json` and creates the tag `vX.Y.Z`.
+2. Push it: `git push --follow-tags`.
+3. The [Release workflow](.github/workflows/release.yml) checks that the tag matches `package.json`, creates a draft release with generated notes, then builds the Windows installer and portable `.exe`, the macOS `.dmg` and `.zip` for Apple Silicon and Intel, and the Linux AppImage, and uploads them together with the `latest*.yml` files the updater reads.
+4. Edit the notes if needed and click **Publish**. Installed apps see the update at their next check (on start, then every six hours). A draft is invisible to them.
+
+To try a build without publishing anything, run the workflow manually from the Actions tab: the installers are attached to the run as artifacts. Locally, `npm run dist` builds the installers for your OS into `dist/`.
+
+To test the update flow without GitHub, serve a folder with a `latest*.yml` and the installer over HTTP and start the app with `CYBERCAT_UPDATE_FEED=http://localhost:8080/`.
+
+### Code signing
+
+No certificates are configured, which keeps releases free:
+
+- **Windows** installs and updates work unsigned; SmartScreen warns on first launch. [SignPath Foundation](https://signpath.org) signs open-source projects for free, which removes the warning over time.
+- **macOS** builds are ad-hoc signed, which Apple Silicon requires, so updates there are manual. With an Apple Developer ID ($99 a year): set `mac.identity`, enable `hardenedRuntime` and notarization in `electron-builder.yml`, and let `canInstall()` in `src/main/updater.ts` return true on macOS.
+- **Linux** AppImages need no signing.
+
 ## Reporting bugs
 
 Use the bug report template. Please include the OS, the SSH server type if known, and the steps to reproduce. Never paste private keys, passwords or host fingerprints of production servers.

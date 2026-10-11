@@ -23,6 +23,7 @@ import { logView } from './logView'
 import { session } from './session'
 import { terminal } from './terminal'
 import { transfers } from './transfers'
+import { updates } from './updates'
 
 export const uk: Messages = {
   common,
@@ -48,5 +49,6 @@ export const uk: Messages = {
   logView,
   session,
   terminal,
-  transfers
+  transfers,
+  updates
 }

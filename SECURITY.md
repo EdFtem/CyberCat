@@ -18,4 +18,5 @@ Please do not open a public issue for security problems. Use GitHub's private vu
 
 - Renderer runs with `contextIsolation: true` and `nodeIntegration: false`; all privileged work happens in the main process.
 - Remote shell commands built from paths are single-quoted with escaping (`shq` in `src/main/fs/sftpUtil.ts`). Please report any path that escapes it.
-- No telemetry and no network access besides the SSH connections you create.
+- No telemetry. Besides the SSH connections you create, the only network traffic is the update check against GitHub Releases (`github.com`), which can be turned off in Settings → Updates.
+- Updates are downloaded over HTTPS from the project's GitHub releases; on Windows and Linux the updater checks each download against the SHA-512 hash published in `latest*.yml`.

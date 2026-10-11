@@ -31,6 +31,7 @@ import type {
   TransferRequest,
   TransferSummary,
   Tunnel,
+  UpdateStatus,
   WatchInfo
 } from './types'
 
@@ -54,6 +55,15 @@ export interface Api {
     showInFolder(p: string): Promise<void>
     setTitleBarOverlay(o: { color: string; symbolColor: string }): Promise<void>
     getPathForFile(f: File): string
+  }
+  update: {
+    status(): Promise<UpdateStatus>
+    /** Checks GitHub Releases now and reports errors and "up to date" back to the UI */
+    check(): Promise<UpdateStatus>
+    /** Quits and installs a downloaded update */
+    install(): Promise<void>
+    /** Opens the release page of the newest version in the browser */
+    openRelease(): Promise<void>
   }
   settings: {
     get(): Promise<AppSettings>
@@ -169,5 +179,6 @@ export interface Api {
     tailExit(cb: (d: TailExit) => void): Unsubscribe
     watchUpdate(cb: (list: WatchInfo[]) => void): Unsubscribe
     tunnelUpdate(cb: (list: Tunnel[]) => void): Unsubscribe
+    updateStatus(cb: (s: UpdateStatus) => void): Unsubscribe
   }
 }

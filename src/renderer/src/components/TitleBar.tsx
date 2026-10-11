@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { ArrowDownUp, Cat, House, Moon, PencilLine, Plus, Settings, Sun, Upload, X, CircleAlert, Eye, Globe, ExternalLink } from 'lucide-react'
+import { ArrowDownUp, Cat, House, Moon, PencilLine, Plus, Settings, Sun, Upload, X, CircleAlert, Eye, Globe, ExternalLink, Download, RefreshCw } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { cn } from '@/lib/cn'
 import { IconButton, StatusDot, Spinner } from './ui'
 import { formatTime } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { confirmInstallUpdate } from '@/lib/update'
 
 export function TitleBar() {
   const t = useT()
@@ -74,6 +75,7 @@ export function TitleBar() {
       </nav>
 
       <div className="flex items-center gap-1 pl-2 no-drag">
+        <UpdateButton />
         {/* Shown only while files are open externally, like tunnels and watches */}
         {extedits.length > 0 && (
           <div className="relative">
@@ -115,6 +117,40 @@ export function TitleBar() {
       </div>
     </header>
   )
+}
+
+/** Appears only when a newer version exists: download link, progress, or restart to install */
+function UpdateButton() {
+  const t = useT()
+  const update = useApp((s) => s.update)
+  if (!update?.version) return null
+  const base = 'inline-flex items-center gap-1.5 h-7 px-2.5 mr-1 rounded-md text-[12px] font-medium whitespace-nowrap transition-colors'
+  if (update.state === 'downloaded') {
+    return (
+      <button type="button" className={cn(base, 'bg-accent text-accent-fg hover:bg-accent-strong')} onClick={confirmInstallUpdate} title={t.updates.downloaded(update.version)}>
+        <RefreshCw size={13} />
+        {t.updates.pillReady}
+      </button>
+    )
+  }
+  if (update.state === 'downloading') {
+    const pct = update.percent ?? 0
+    return (
+      <span className={cn(base, 'bg-accent-soft text-accent')} title={t.updates.downloading(update.version, pct)}>
+        <Spinner size={12} />
+        {t.updates.pillDownloading(pct)}
+      </span>
+    )
+  }
+  if (update.state === 'available') {
+    return (
+      <button type="button" className={cn(base, 'bg-accent-soft text-accent hover:bg-accent hover:text-accent-fg')} onClick={() => void window.api.update.openRelease()} title={t.updates.available(update.version)}>
+        <Download size={13} />
+        {t.updates.pillAvailable(update.version)}
+      </button>
+    )
+  }
+  return null
 }
 
 function Dot({ count, tone }: { count: number; tone: 'accent' | 'danger' }) {

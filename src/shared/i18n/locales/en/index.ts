@@ -22,6 +22,7 @@ import { logView } from './logView'
 import { session } from './session'
 import { terminal } from './terminal'
 import { transfers } from './transfers'
+import { updates } from './updates'
 
 /** English is the source dictionary: every other language must match its shape */
 export const en = {
@@ -48,7 +49,8 @@ export const en = {
   logView,
   session,
   terminal,
-  transfers
+  transfers,
+  updates
 }
 
 export type Messages = typeof en

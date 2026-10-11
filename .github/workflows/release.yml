@@ -1,0 +1,71 @@
+name: Release
+
+# Push a tag like v0.2.0 (npm version patch && git push --follow-tags) to build installers for
+# Windows, macOS and Linux and upload them to a draft GitHub release. Publishing the draft is what
+# makes the update visible to installed apps. A manual run builds everything without publishing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    name: Create draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag matches package.json
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$v" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $v"
+            exit 1
+          fi
+      # One draft up front, so the three build jobs upload into the same release instead of racing to create it
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "CyberCat ${GITHUB_REF_NAME#v}" --generate-notes
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: draft
+    if: ${{ !cancelled() && (needs.draft.result == 'success' || needs.draft.result == 'skipped') }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # No install scripts: Electron is fetched by electron-builder, and ssh2 runs in pure JavaScript
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npx electron-vite build
+      - name: Package
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No paid certificates: Windows and Linux builds are unsigned, macOS is ad-hoc signed
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+      - name: Keep the installers of a manual run
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cybercat-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/latest*.yml
+          if-no-files-found: error

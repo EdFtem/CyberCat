@@ -16,6 +16,7 @@ import {
   type Toast,
   type TransferSummary,
   type Tunnel,
+  type UpdateStatus,
   type WatchInfo
 } from '@shared/types'
 import { pathLib, setLocalPlatform } from '@/lib/paths'
@@ -141,6 +142,7 @@ interface State {
   clipboard: ClipboardState | null
   watches: WatchInfo[]
   tunnels: Tunnel[]
+  update: UpdateStatus | null
 }
 
 interface Actions {
@@ -257,6 +259,7 @@ export const useApp = create<AppStore>((set, get) => ({
   clipboard: null,
   watches: [],
   tunnels: [],
+  update: null,
 
   async boot() {
     if (get().booted) return
@@ -265,18 +268,20 @@ export const useApp = create<AppStore>((set, get) => ({
     const settings = await api.settings.get()
     applyTheme(settings.theme)
     setLang(settings.language)
-    const [profiles, sessionList, transfers, extedits, watches, tunnels] = await Promise.all([
+    const [profiles, sessionList, transfers, extedits, watches, tunnels, update] = await Promise.all([
       api.profiles.list(),
       api.sessions.list(),
       api.transfer.list(),
       api.extedit.list(),
       api.watch.list().catch(() => []),
-      api.tunnel.list().catch(() => [])
+      api.tunnel.list().catch(() => []),
+      api.update.status().catch(() => null)
     ])
     const sessions: Record<string, SessionInfo> = {}
     for (const s of sessionList) sessions[s.id] = s
-    set({ booted: true, info, settings, profiles, sessions, transfers, extedits, watches, tunnels })
+    set({ booted: true, info, settings, profiles, sessions, transfers, extedits, watches, tunnels, update })
     api.on.watchUpdate((list) => set({ watches: list }))
+    api.on.updateStatus((u) => onUpdate(u))
     api.on.tunnelUpdate((list) => set({ tunnels: list }))
 
     api.on.sessionUpdate((s) => onSessionUpdate(s))
@@ -322,6 +327,23 @@ export const useApp = create<AppStore>((set, get) => ({
           void get().navigate(info.id, 'remote', remotePath)
           void get().navigate(info.id, 'local', localPath)
         }
+      }
+    }
+
+    /** One toast per version: when an update is ready to install, or available to download where the app cannot install it */
+    const notifiedUpdates = new Set<string>()
+    function onUpdate(u: UpdateStatus): void {
+      set({ update: u })
+      if (!u.version) return
+      const key = `${u.state}:${u.version}`
+      if (notifiedUpdates.has(key)) return
+      const t = tr().updates
+      if (u.state === 'downloaded') {
+        notifiedUpdates.add(key)
+        get().pushToast({ kind: 'success', title: t.toastReadyTitle(u.version), message: t.toastReadyMessage })
+      } else if (u.state === 'available' && !u.canInstall) {
+        notifiedUpdates.add(key)
+        get().pushToast({ kind: 'info', title: t.toastAvailableTitle(u.version), message: t.toastAvailableMessage })
       }
     }
 

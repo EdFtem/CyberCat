@@ -18,6 +18,7 @@ import { runCompare } from './sync/CompareService'
 import { watches } from './sync/WatchService'
 import * as docker from './docker/DockerService'
 import { tunnels } from './tunnel/TunnelService'
+import { updater } from './updater'
 import type { AppInfo } from '@shared/api'
 import type {
   AppSettings,
@@ -239,4 +240,10 @@ export function registerIpc(): void {
   handle('tunnel:start', (sid: string, host: string, port: number) => tunnels.start(sid, host, port))
   handle('tunnel:stop', (id: string) => tunnels.stop(id))
   handle('tunnel:list', () => tunnels.list())
+
+  // ---- updates
+  handle('update:status', () => updater.status())
+  handle('update:check', () => updater.check())
+  handle('update:install', () => updater.install())
+  handle('update:openRelease', () => updater.openRelease())
 }

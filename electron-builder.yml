@@ -1,5 +1,6 @@
 appId: ai.cybercat.app
 productName: CyberCat
+copyright: Copyright © 2026 Eduard Ftemov
 directories:
   output: dist
   buildResources: resources
@@ -8,6 +9,18 @@ files:
   - package.json
 asarUnpack:
   - node_modules/ssh2/**
+# ssh2 and cpu-features fall back to pure JavaScript when their optional native addons are missing,
+# so packaging never rebuilds native modules for Electron (no compiler toolchain needed on CI)
+npmRebuild: false
+
+# Releases live on GitHub: CI uploads the installers and latest*.yml to a draft release,
+# and the app's updater reads the newest published release from the same repository
+publish:
+  provider: github
+  owner: EdFtem
+  repo: CyberCat
+  releaseType: draft
+
 win:
   target:
     - nsis
@@ -16,9 +29,26 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
+  artifactName: ${productName}-Setup-${version}.${ext}
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
 mac:
   category: public.app-category.developer-tools
+  # dmg for people, zip for the updater; one build per architecture
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  # Ad-hoc signature: required for Apple Silicon, but not a Developer ID, so macOS updates are manual.
+  # Hardened runtime only matters for notarization (needs a Developer ID) and breaks ad-hoc launches.
+  identity: '-'
+  hardenedRuntime: false
+
 linux:
   target:
     - AppImage
   category: Utility
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
