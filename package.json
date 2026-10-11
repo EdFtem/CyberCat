@@ -30,11 +30,11 @@
   },
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "node --max-old-space-size=4096 node_modules/electron-vite/bin/electron-vite.js build",
     "start": "electron .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "dist": "electron-vite build && electron-builder --publish never",
-    "dist:dir": "electron-vite build && electron-builder --dir --publish never",
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:dir": "npm run build && electron-builder --dir --publish never",
     "test:e2e": "esbuild tests/e2e.ts --bundle --platform=node --format=cjs --outfile=out/test/e2e.cjs --external:electron --external:ssh2 --external:iconv-lite --alias:@shared=./src/shared --log-level=warning && electron out/test/e2e.cjs",
     "test:ui": "node tests/run-ui-smoke.cjs"
   },

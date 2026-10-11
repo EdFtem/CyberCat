@@ -49,7 +49,8 @@ jobs:
       # No install scripts: Electron is fetched by electron-builder, and ssh2 runs in pure JavaScript
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
-      - run: npx electron-vite build
+      # npm run build gives Node a 4 GB heap: bundling Monaco peaks at ~3.4 GB, and the 7 GB macOS runner defaults to 2 GB
+      - run: npm run build
       - name: Package
         shell: bash
         env:
