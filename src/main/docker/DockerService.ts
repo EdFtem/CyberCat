@@ -124,6 +124,28 @@ interface StatsRow {
   BlockIO: string
 }
 
+/** The fields of `docker inspect` output the container list needs */
+interface InspectRow {
+  Id?: string
+  RestartCount?: number
+  Config?: { Labels?: Record<string, string> | null }
+  State?: { Health?: { Status?: string }; Healthcheck?: { Status?: string } }
+  HostConfig?: { RestartPolicy?: { Name?: string } }
+}
+
+/** `docker inspect` prints one JSON array; tolerate noise around it and a missing or broken result */
+function parseInspect(stdout: string): InspectRow[] {
+  const start = stdout.indexOf('[')
+  const end = stdout.lastIndexOf(']')
+  if (start < 0 || end < start) return []
+  try {
+    const rows = JSON.parse(stdout.slice(start, end + 1)) as InspectRow[]
+    return Array.isArray(rows) ? rows.map((r) => ({ ...r, Config: { Labels: r.Config?.Labels ?? {} } })) : []
+  } catch {
+    return []
+  }
+}
+
 export async function listContainers(sessionId: string): Promise<DockerContainer[]> {
   const { s, cli } = await cliFor(sessionId)
   const [ps, stats] = await Promise.all([
@@ -137,21 +159,20 @@ export async function listContainers(sessionId: string): Promise<DockerContainer
 
   const details = new Map<string, { labels: Record<string, string>; restarts: number; health?: string; policy?: string }>()
   if (rows.length) {
+    // Plain JSON instead of a --format template: on current Docker a template that touches a missing key
+    // (State.Health on a container without a healthcheck) fails the whole command, which used to drop
+    // compose labels, health and restart counts for every container
     const ids = rows.map((r) => shq(r.ID)).join(' ')
-    const insp = await s.exec(
-      `${cli} inspect --format '{{.Id}}\t{{json .Config.Labels}}\t{{.RestartCount}}\t{{if .State.Health}}{{.State.Health.Status}}{{end}}\t{{.HostConfig.RestartPolicy.Name}}' ${ids} 2>/dev/null`,
-      60_000
-    )
-    for (const line of insp.stdout.split('\n')) {
-      const [id, labelsJson, restarts, health, policy] = line.split('\t')
-      if (!id) continue
-      let labels: Record<string, string> = {}
-      try {
-        labels = (JSON.parse(labelsJson || 'null') as Record<string, string> | null) ?? {}
-      } catch {
-        labels = {}
-      }
-      details.set(id, { labels, restarts: Number(restarts) || 0, health: health || undefined, policy: policy || undefined })
+    const insp = await s.exec(`${cli} inspect ${ids} 2>/dev/null`, 60_000)
+    for (const c of parseInspect(insp.stdout)) {
+      if (!c.Id) continue
+      details.set(c.Id, {
+        labels: c.Config?.Labels ?? {},
+        restarts: Number(c.RestartCount) || 0,
+        // podman before 4.x reports Healthcheck instead of Health
+        health: c.State?.Health?.Status || c.State?.Healthcheck?.Status || undefined,
+        policy: c.HostConfig?.RestartPolicy?.Name || undefined
+      })
     }
   }
 
