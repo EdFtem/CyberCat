@@ -6,6 +6,8 @@
 
 Graphical SSH/SFTP file manager: dual-pane browser, resumable transfer queue, Monaco editor with encoding and EOL preservation, external editor auto-upload and a built-in terminal on the same SSH session. Built with Electron, React, TypeScript, Tailwind, ssh2, Monaco and xterm.js.
 
+**Website:** [edftem.github.io/CyberCat](https://edftem.github.io/CyberCat/)
+
 ![CyberCat connection manager](docs/screenshot-home.png)
 
 CyberCat is a WinSCP-style client for people who live in SSH all day. Connection profiles support passwords, OpenSSH and PuTTY keys and SSH agents, with passwords stored through the OS keychain and strict host key verification. Transfers run in a queue with pause, cancel, retry and resume from the last committed byte, and they survive reconnects. Files open in Monaco with the original encoding and line endings preserved, saves are atomic and conflicts with server-side edits are detected. Hosts import from `~/.ssh/config` including ProxyJump chains, logs can be followed live with `tail -F`, and files are searchable by name and content. A sudo mode runs `sftp-server` as root over a second channel, and folders can be compared and synchronized by size, mtime or sha256, with an optional watch mode that uploads local changes as they happen. A Docker view manages containers, images, volumes and compose projects over the same SSH session, streams `docker logs`, opens a shell inside a container and exposes published ports through SSH tunnels straight into your browser.

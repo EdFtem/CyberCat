@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CyberCat — SSH &amp; SFTP file manager for Windows, macOS and Linux</title>
+  <meta name="description" content="Free, open-source SSH and SFTP file manager: dual panes, resumable transfers, a real code editor, live logs, a terminal and Docker over one SSH connection. For Windows, macOS and Linux." />
+  <link rel="canonical" href="https://edftem.github.io/CyberCat/" />
+  <meta name="theme-color" content="#070a10" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="CyberCat — the file manager for people who live in SSH" />
+  <meta property="og:description" content="Dual panes, resumable transfers, a real code editor, live logs, a terminal and Docker over one SSH connection. Free and open source." />
+  <meta property="og:url" content="https://edftem.github.io/CyberCat/" />
+  <meta property="og:image" content="https://edftem.github.io/CyberCat/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" type="image/png" href="assets/favicon.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <link rel="preload" as="image" href="assets/shots/hero.webp" fetchpriority="high" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>document.documentElement.classList.add('js')</script>
+  <script src="main.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+  <header class="nav" id="top">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top" aria-label="CyberCat home">
+        <img src="assets/icon.png" width="32" height="32" alt="" />
+        <span>CyberCat</span>
+      </a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#features" data-i18n="nav.features">Features</a>
+        <a href="#docker" data-i18n="nav.docker">Docker</a>
+        <a href="#security" data-i18n="nav.security">Security</a>
+        <a href="#download" data-i18n="nav.download">Download</a>
+        <a href="#faq" data-i18n="nav.faq">FAQ</a>
+      </nav>
+      <div class="nav-actions">
+        <div class="lang" role="group" aria-label="Language">
+          <button type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang="uk" aria-pressed="false">UK</button>
+        </div>
+        <a class="btn btn-ghost btn-sm gh" href="https://github.com/EdFtem/CyberCat" target="_blank" rel="noopener">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.75 5.48.75 11.75c0 4.97 3.22 9.18 7.69 10.67.56.1.77-.24.77-.54 0-.27-.01-1.15-.02-2.08-3.13.68-3.79-1.34-3.79-1.34-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.72 2.63 1.22 3.27.93.1-.73.39-1.22.71-1.5-2.5-.28-5.13-1.25-5.13-5.57 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.16a10.8 10.8 0 0 1 5.64 0c2.15-1.46 3.1-1.16 3.1-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.8 1.16 3.03 0 4.33-2.64 5.28-5.15 5.56.4.35.76 1.03.76 2.08 0 1.5-.01 2.71-.01 3.08 0 .3.2.65.78.54 4.47-1.49 7.69-5.7 7.69-10.67C23.25 5.48 18.27.5 12 .5Z"/></svg>
+          <span class="gh-label">GitHub</span>
+          <span class="stars" data-stars hidden><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path></svg><b></b></span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="wrap hero-inner">
+        <p class="eyebrow reveal"><span class="dot"></span><span data-i18n="hero.eyebrow">Free and open source · Windows · macOS · Linux</span></p>
+        <h1 class="reveal" data-i18n-html="hero.title">The file manager for people who <em>live in SSH</em></h1>
+        <p class="lead reveal" data-i18n="hero.lead">Two panes, resumable transfers, a real code editor, live logs, a terminal and Docker — all over one SSH connection.</p>
+        <div class="hero-cta reveal">
+          <a class="btn btn-primary btn-lg" href="#download" data-primary-download>
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path></svg>
+            <span data-primary-label data-i18n="hero.download">Download</span>
+          </a>
+          <a class="btn btn-ghost btn-lg" href="https://github.com/EdFtem/CyberCat" target="_blank" rel="noopener">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.75 5.48.75 11.75c0 4.97 3.22 9.18 7.69 10.67.56.1.77-.24.77-.54 0-.27-.01-1.15-.02-2.08-3.13.68-3.79-1.34-3.79-1.34-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.72 2.63 1.22 3.27.93.1-.73.39-1.22.71-1.5-2.5-.28-5.13-1.25-5.13-5.57 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.16a10.8 10.8 0 0 1 5.64 0c2.15-1.46 3.1-1.16 3.1-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.8 1.16 3.03 0 4.33-2.64 5.28-5.15 5.56.4.35.76 1.03.76 2.08 0 1.5-.01 2.71-.01 3.08 0 .3.2.65.78.54 4.47-1.49 7.69-5.7 7.69-10.67C23.25 5.48 18.27.5 12 .5Z"/></svg>
+            <span data-i18n="hero.github">View on GitHub</span>
+          </a>
+        </div>
+        <p class="hero-meta reveal">
+          <span data-primary-meta data-i18n="hero.meta">Free · No account needed</span>
+          <a href="#download" data-other-platforms data-i18n="hero.other">Other platforms</a>
+        </p>
+
+        <div class="hero-shot reveal">
+          <figure class="frame frame-hero">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <img src="assets/shots/hero.webp" width="2400" height="1500" alt="CyberCat with a local folder and a server side by side, and a terminal showing the running Docker services" fetchpriority="high" data-zoom />
+          </figure>
+          <div class="chip chip-a" aria-hidden="true"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg><span data-i18n="chip.resume">Resumes from the last byte</span></div>
+          <div class="chip chip-b" aria-hidden="true"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"></path><path d="M10 21.9V14L2.1 9.1"></path><path d="m10 14 11.9-6.9"></path><path d="M14 19.8v-8.1"></path><path d="M18 17.5V9.4"></path></svg><span data-i18n="chip.docker">Docker over SSH</span></div>
+          <div class="chip chip-c" aria-hidden="true"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg><span data-i18n="chip.sudo">sudo in one click</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trust strip -->
+    <section class="trust" aria-label="Highlights">
+      <div class="wrap trust-inner">
+        <span><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"></path><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"></path><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"></path><path d="m2 2 20 20"></path></svg><span data-i18n="trust.telemetry">No telemetry</span></span>
+        <span><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><span data-i18n="trust.keychain">Passwords in your OS keychain</span></span>
+        <span><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"></path><path d="M14 13.12c0 2.38 0 6.38-1 8.88"></path><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"></path><path d="M2 12a10 10 0 0 1 18-6"></path><path d="M2 16h.01"></path><path d="M21.8 16c.2-2 .131-5.354 0-6"></path><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"></path><path d="M8.65 22c.21-.66.45-1.32.57-2"></path><path d="M9 6.8a6 6 0 0 1 9 5.2v2"></path></svg><span data-i18n="trust.hostkeys">Strict host key checks</span></span>
+        <span><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"></path><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"></path><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"></path><path d="M7 21h10"></path></svg><span data-i18n="trust.mit">MIT licensed</span></span>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="features.kicker">Features</p>
+          <h2 data-i18n="features.title">Everything you SSH for. One window.</h2>
+          <p data-i18n="features.lead">CyberCat replaces the file client, the editor, the log tail and the Docker dashboard you keep open next to your terminal.</p>
+        </header>
+
+        <div class="bento">
+          <article class="card card-wide reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M12 3v18"></path></svg></div>
+            <h3 data-i18n="f.panes.t">Two panes, zero friction</h3>
+            <p data-i18n="f.panes.d">Local and remote side by side, with a tab for every server. Drag and drop, F5 to copy, F6 to move, breadcrumbs, filter and history.</p>
+            <div class="keys" aria-hidden="true"><kbd>F5</kbd><span>copy</span><kbd>F6</kbd><span>move</span><kbd>F7</kbd><span>folder</span><kbd>F2</kbd><span>rename</span></div>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4"></path><path d="M7 20V4"></path><path d="m21 8-4-4-4 4"></path><path d="M17 4v16"></path></svg></div>
+            <h3 data-i18n="f.transfers.t">Transfers that survive anything</h3>
+            <p data-i18n="f.transfers.d">A queue with pause, retry and resume from the last committed byte. Lose the connection and it carries on after the reconnect.</p>
+            <div class="progress-demo" aria-hidden="true"><span></span></div>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"></path><path d="m8 6-6 6 6 6"></path></svg></div>
+            <h3 data-i18n="f.editor.t">A real code editor</h3>
+            <p data-i18n="f.editor.d">Monaco with syntax highlighting. Encoding and line endings stay as they were, saves are atomic, and you're warned if someone changed the file meanwhile.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12h-5"></path><path d="M15 8h-5"></path><path d="M19 17V5a2 2 0 0 0-2-2H4"></path><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"></path></svg></div>
+            <h3 data-i18n="f.logs.t">Live logs</h3>
+            <p data-i18n="f.logs.d">Follow any log with tail -F: levels in color, a filter, pause and auto-scroll.</p>
+            <div class="log-demo" aria-hidden="true"><span class="l-info">INFO&nbsp; GET /api 200</span><span class="l-warn">WARN&nbsp; cache miss</span><span class="l-err">ERROR timeout</span></div>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2"></path><path d="M11 13h4"></path><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect></svg></div>
+            <h3 data-i18n="f.terminal.t">A terminal in the same session</h3>
+            <p data-i18n="f.terminal.d">xterm.js on the connection you already have, opened in the folder you're looking at.</p>
+          </article>
+          <article class="card card-tall card-accent reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"></path><path d="M10 21.9V14L2.1 9.1"></path><path d="m10 14 11.9-6.9"></path><path d="M14 19.8v-8.1"></path><path d="M18 17.5V9.4"></path></svg></div>
+            <h3 data-i18n="f.docker.t">Docker over SSH</h3>
+            <p data-i18n="f.docker.d">Containers, images, volumes and compose projects on any server you can SSH into. Logs, a shell inside a container, live CPU and memory.</p>
+            <ul class="mini-list" aria-hidden="true">
+              <li><i class="ok"></i>shop-web-1<span>8080→80</span></li>
+              <li><i class="ok"></i>shop-api-1<span>3000</span></li>
+              <li><i class="ok"></i>shop-db-1<span>5432</span></li>
+              <li><i class="off"></i>backup-job<span>exited</span></li>
+            </ul>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg></div>
+            <h3 data-i18n="f.sudo.t">sudo in one click</h3>
+            <p data-i18n="f.sudo.d">Browse and edit as root through a second SFTP channel. A red edge on the pane reminds you that it's on.</p>
+            <span class="root-badge" aria-hidden="true">root</span>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="3"></circle><path d="M12 6h5a2 2 0 0 1 2 2v7"></path><path d="m15 9-3-3 3-3"></path><circle cx="19" cy="18" r="3"></circle><path d="M12 18H7a2 2 0 0 1-2-2V9"></path><path d="m9 15 3 3-3 3"></path></svg></div>
+            <h3 data-i18n="f.sync.t">Compare and sync folders</h3>
+            <p data-i18n="f.sync.d">By size, date or sha256, in either direction or newest wins. Preview the plan, then let watch mode upload changes as you save.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></div>
+            <h3 data-i18n="f.tunnels.t">Port tunnels</h3>
+            <p data-i18n="f.tunnels.d">Click a container's published port to open it in your browser through an SSH tunnel.</p>
+            <code class="tunnel" aria-hidden="true">localhost:8080 → web:80</code>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><circle cx="11.5" cy="14.5" r="2.5"></circle><path d="M13.3 16.3 15 18"></path></svg></div>
+            <h3 data-i18n="f.search.t">Search the server</h3>
+            <p data-i18n="f.search.d">Find files by name with find and by content with grep, then jump straight to them.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"></path><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"></circle></svg></div>
+            <h3 data-i18n="f.config.t">Your ssh config, imported</h3>
+            <p data-i18n="f.config.d">Hosts, users, keys and ProxyJump chains from ~/.ssh/config in one click. Passwords, keys and agents, OpenSSH or Pageant.</p>
+          </article>
+          <article class="card card-wide reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"></path><path d="m14 7 3 3"></path><path d="M5 6v4"></path><path d="M19 14v4"></path><path d="M10 2v2"></path><path d="M7 8H3"></path><path d="M21 16h-4"></path><path d="M11 3H9"></path></svg></div>
+            <h3 data-i18n="f.power.t">Power tools</h3>
+            <p data-i18n="f.power.d">Batch rename with regex or templates, your own commands in the context menu, bookmarks, and every action on the keyboard.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Showcases -->
+    <section class="section showcase-section">
+      <div class="wrap">
+        <article class="showcase reveal">
+          <div class="showcase-text">
+            <p class="kicker" data-i18n="s.editor.k">Editor</p>
+            <h2 data-i18n="s.editor.t">Edit on the server as if it were local</h2>
+            <p data-i18n="s.editor.d">Open any file in the built-in Monaco editor. CyberCat keeps the original encoding and line endings, writes atomically and stops you before you overwrite someone else's change. Prefer your own editor? The file opens there and uploads on every save.</p>
+            <ul class="ticks">
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.editor.1">UTF-8, UTF-8 with BOM and Windows-1251 preserved</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.editor.2">Conflict detection by modification time</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.editor.3">External editor with automatic upload</span></li>
+            </ul>
+          </div>
+          <figure class="frame">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <img src="assets/shots/editor.webp" width="2400" height="1500" loading="lazy" alt="A docker-compose.yml file open in CyberCat's editor with YAML highlighting" data-zoom />
+          </figure>
+        </article>
+
+        <article class="showcase showcase-flip reveal" id="docker">
+          <div class="showcase-text">
+            <p class="kicker" data-i18n="s.docker.k">Docker</p>
+            <h2 data-i18n="s.docker.t">Your containers, without another dashboard</h2>
+            <p data-i18n="s.docker.d">CyberCat speaks docker and podman over the SSH session you already have. Compose projects get up, restart, pull and down in one click, containers show live CPU and memory, and published ports open in your browser through a tunnel.</p>
+            <ul class="ticks">
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.docker.1">Logs and a shell inside any container</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.docker.2">Readable inspect that jumps to bind mounts on the host</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.docker.3">Clean up dangling images and unused volumes</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.docker.4">Works through sudo when only root can reach the socket</span></li>
+            </ul>
+          </div>
+          <figure class="frame">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <img src="assets/shots/docker.webp" width="2400" height="1500" loading="lazy" alt="The Docker view with a compose project of four running services and their CPU and memory" data-zoom />
+          </figure>
+        </article>
+
+        <article class="showcase reveal">
+          <div class="showcase-text">
+            <p class="kicker" data-i18n="s.logs.k">Live logs</p>
+            <h2 data-i18n="s.logs.t">Watch logs as they happen</h2>
+            <p data-i18n="s.logs.d">Follow any file with tail -F in a pseudo-terminal. Errors and warnings stand out, the filter narrows thousands of lines to the ones you care about, and pause keeps your place while new lines queue up.</p>
+            <ul class="ticks">
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.logs.1">Errors, warnings and debug lines in their own colors</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.logs.2">Filter, pause and auto-scroll</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.logs.3">Falls back to SFTP polling on servers without a shell</span></li>
+            </ul>
+          </div>
+          <figure class="frame">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <img src="assets/shots/logs.webp" width="2400" height="1500" loading="lazy" alt="A live view of an application log with warnings and errors highlighted" data-zoom />
+          </figure>
+        </article>
+
+        <article class="showcase showcase-flip reveal">
+          <div class="showcase-text">
+            <p class="kicker" data-i18n="s.sync.k">Sync</p>
+            <h2 data-i18n="s.sync.t">Keep folders in sync, on purpose</h2>
+            <p data-i18n="s.sync.d">Compare a local folder with the server and see exactly what will happen before anything moves. Mirror deletions if you want, then let watch mode upload your changes as you save.</p>
+            <ul class="ticks">
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.sync.1">Local → server, server → local or newer wins</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.sync.2">A plan preview with an action for every file</span></li>
+              <li><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span data-i18n="s.sync.3">Compare by size, date or sha256</span></li>
+            </ul>
+          </div>
+          <figure class="frame">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <img src="assets/shots/compare.webp" width="2400" height="1500" loading="lazy" alt="The folder compare dialog listing differences between a local folder and the server" data-zoom />
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <!-- Long days -->
+    <section class="section">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="days.kicker">Comfort</p>
+          <h2 data-i18n="days.title">Built for long days on servers</h2>
+        </header>
+        <div class="trio">
+          <article class="tile reveal">
+            <figure class="frame frame-sm"><img src="assets/shots/light.webp" width="2400" height="1500" loading="lazy" alt="CyberCat in the light theme" data-zoom /></figure>
+            <h3><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg><span data-i18n="days.theme.t">Light or dark</span></h3>
+            <p data-i18n="days.theme.d">Both themes are tuned for contrast, down to the dimmest label.</p>
+          </article>
+          <article class="tile reveal">
+            <figure class="frame frame-sm"><img src="assets/shots/ukrainian.webp" width="2400" height="1500" loading="lazy" alt="CyberCat with the interface in Ukrainian" data-zoom /></figure>
+            <h3><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"></path><path d="m4 14 6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="m22 22-5-10-5 10"></path><path d="M14 18h6"></path></svg><span data-i18n="days.lang.t">English or Ukrainian</span></h3>
+            <p data-i18n="days.lang.d">Switch the language in Settings, without a restart. Adding another one is a single folder of strings.</p>
+          </article>
+          <article class="tile reveal">
+            <figure class="frame frame-sm"><img src="assets/shots/shortcuts.webp" width="2400" height="1500" loading="lazy" alt="The keyboard shortcuts sheet" data-zoom /></figure>
+            <h3><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 8h.01"></path><path d="M12 12h.01"></path><path d="M14 8h.01"></path><path d="M16 12h.01"></path><path d="M18 8h.01"></path><path d="M6 8h.01"></path><path d="M7 16h10"></path><path d="M8 12h.01"></path><rect width="20" height="16" x="2" y="4" rx="2"></rect></svg><span data-i18n="days.keys.t">Keyboard first</span></h3>
+            <p data-i18n="days.keys.d">Function keys from classic file managers, and the full list one keystroke away on F1.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Security -->
+    <section class="section security" id="security">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="sec.kicker">Security</p>
+          <h2 data-i18n="sec.title">Your keys stay yours</h2>
+        </header>
+        <div class="sec-grid">
+          <article class="sec reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"></path><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"></path><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"></path><path d="m2 2 20 20"></path></svg></div>
+            <h3 data-i18n="sec.telemetry.t">No telemetry</h3>
+            <p data-i18n="sec.telemetry.d">No analytics and no accounts. Besides your SSH connections, the only request is the update check to GitHub, and you can turn it off.</p>
+          </article>
+          <article class="sec reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+            <h3 data-i18n="sec.keychain.t">Your OS keychain</h3>
+            <p data-i18n="sec.keychain.d">Saved passwords are encrypted by your operating system's credential store. Private keys are read from disk only when you connect.</p>
+          </article>
+          <article class="sec reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"></path><path d="M14 13.12c0 2.38 0 6.38-1 8.88"></path><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"></path><path d="M2 12a10 10 0 0 1 18-6"></path><path d="M2 16h.01"></path><path d="M21.8 16c.2-2 .131-5.354 0-6"></path><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"></path><path d="M8.65 22c.21-.66.45-1.32.57-2"></path><path d="M9 6.8a6 6 0 0 1 9 5.2v2"></path></svg></div>
+            <h3 data-i18n="sec.hostkeys.t">Strict host keys</h3>
+            <p data-i18n="sec.hostkeys.d">A new server's fingerprint is remembered on the first connect, and a changed one stops you with a clear warning.</p>
+          </article>
+          <article class="sec reveal">
+            <div class="card-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"></path><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"></path><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"></path><path d="M7 21h10"></path></svg></div>
+            <h3 data-i18n="sec.open.t">Open source</h3>
+            <p data-i18n="sec.open.d">Every line is on GitHub under the MIT license. Read it, build it, change it.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download -->
+    <section class="section download" id="download">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="dl.kicker">Download</p>
+          <h2 data-i18n="dl.title">Get CyberCat</h2>
+          <p><span data-i18n="dl.lead">Free for Windows, macOS and Linux.</span> <span class="release" data-release hidden></span></p>
+        </header>
+
+        <p class="notice reveal" data-no-release hidden>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"></path></svg><span data-i18n="dl.soon">The first public release is on its way. Until then, build it from source in a couple of minutes, see below.</span>
+        </p>
+
+        <div class="platforms">
+          <article class="platform reveal" data-os="windows">
+            <div class="platform-head"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg><h3>Windows</h3><span class="tag" data-i18n="dl.win.req">10 and 11</span></div>
+            <a class="btn btn-primary" href="https://github.com/EdFtem/CyberCat/releases/latest" data-asset="win"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path></svg><span data-i18n="dl.win.installer">Installer</span><small data-size="win"></small></a>
+            <a class="btn btn-ghost" href="https://github.com/EdFtem/CyberCat/releases/latest" data-asset="winPortable"><span data-i18n="dl.win.portable">Portable .exe</span><small data-size="winPortable"></small></a>
+            <p class="platform-note" data-i18n="dl.win.note">Updates itself. On first launch SmartScreen may warn: click More info, then Run anyway.</p>
+          </article>
+          <article class="platform reveal" data-os="mac">
+            <div class="platform-head"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"></path><path d="M20.054 15.987H3.946"></path></svg><h3>macOS</h3><span class="tag" data-i18n="dl.mac.req">Apple Silicon and Intel</span></div>
+            <a class="btn btn-primary" href="https://github.com/EdFtem/CyberCat/releases/latest" data-asset="macArm"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path></svg><span data-i18n="dl.mac.arm">Apple Silicon</span><small data-size="macArm"></small></a>
+            <a class="btn btn-ghost" href="https://github.com/EdFtem/CyberCat/releases/latest" data-asset="macIntel"><span data-i18n="dl.mac.intel">Intel</span><small data-size="macIntel"></small></a>
+            <p class="platform-note" data-i18n="dl.mac.note">Move CyberCat to Applications, then run this once, because the app isn't notarized by Apple yet:</p>
+            <div class="code"><code>xattr -dr com.apple.quarantine /Applications/CyberCat.app</code><button type="button" class="copy" data-copy aria-label="Copy command"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button></div>
+          </article>
+          <article class="platform reveal" data-os="linux">
+            <div class="platform-head"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect><rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect><line x1="6" x2="6.01" y1="6" y2="6"></line><line x1="6" x2="6.01" y1="18" y2="18"></line></svg><h3>Linux</h3><span class="tag" data-i18n="dl.linux.req">x64 AppImage</span></div>
+            <a class="btn btn-primary" href="https://github.com/EdFtem/CyberCat/releases/latest" data-asset="linux"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path></svg><span>AppImage</span><small data-size="linux"></small></a>
+            <p class="platform-note" data-i18n="dl.linux.note">Updates itself. Make it executable and run it:</p>
+            <div class="code"><code>chmod +x CyberCat-*.AppImage</code><button type="button" class="copy" data-copy aria-label="Copy command"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button></div>
+          </article>
+        </div>
+
+        <details class="source reveal">
+          <summary><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2"></path><path d="M11 13h4"></path><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect></svg><span data-i18n="dl.source">Build from source</span><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></summary>
+          <div class="code code-block"><code>git clone https://github.com/EdFtem/CyberCat.git
+cd CyberCat
+npm install
+npm run dev</code><button type="button" class="copy" data-copy aria-label="Copy commands"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button></div>
+          <p data-i18n="dl.source.note">Needs Node.js 22 or newer. npm run dist builds the installer for your system.</p>
+        </details>
+        <p class="all-releases reveal"><a href="https://github.com/EdFtem/CyberCat/releases" target="_blank" rel="noopener"><span data-i18n="dl.all">All releases and checksums</span><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a></p>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+      <div class="wrap wrap-narrow">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="faq.kicker">FAQ</p>
+          <h2 data-i18n="faq.title">Questions, answered</h2>
+        </header>
+        <div class="faq">
+          <details class="reveal"><summary data-i18n="faq.free.q">Is CyberCat really free?</summary><p data-i18n="faq.free.a">Yes. It's open source under the MIT license, with no accounts, no ads and no paid tier.</p></details>
+          <details class="reveal"><summary data-i18n="faq.data.q">Does it send any data anywhere?</summary><p data-i18n="faq.data.a">No telemetry. Apart from the SSH connections you open, CyberCat only checks GitHub Releases for updates, and you can switch that off in Settings → Updates.</p></details>
+          <details class="reveal"><summary data-i18n="faq.servers.q">Which servers does it work with?</summary><p data-i18n="faq.servers.a">Any SSH server with SFTP, such as OpenSSH on Linux, BSD or macOS. File operations work over plain SFTP; the terminal, server search, live logs, sudo mode and Docker also need shell access.</p></details>
+          <details class="reveal"><summary data-i18n="faq.warning.q">Why does my system warn me on first launch?</summary><p data-i18n="faq.warning.a">The builds aren't signed with paid certificates yet. On Windows choose More info, then Run anyway; on macOS run the xattr command from the download section once.</p></details>
+          <details class="reveal"><summary data-i18n="faq.updates.q">How do updates work?</summary><p data-i18n="faq.updates.a">CyberCat checks GitHub shortly after it starts and every six hours. On Windows and Linux the update downloads in the background and installs when you restart. On macOS the app tells you about the new version and opens its download page.</p></details>
+          <details class="reveal"><summary data-i18n="faq.passwords.q">Where are my passwords stored?</summary><p data-i18n="faq.passwords.a">Only if you choose to save them, encrypted by your operating system's credential store. SSH agents and keys with passphrases work too.</p></details>
+          <details class="reveal"><summary data-i18n="faq.help.q">Can I help?</summary><p data-i18n-html="faq.help.a">Please do. Bug reports, ideas and pull requests are welcome on <a href="https://github.com/EdFtem/CyberCat" target="_blank" rel="noopener">GitHub</a>, and a new interface language is a single folder of strings.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final call to action -->
+    <section class="final">
+      <div class="wrap final-inner reveal">
+        <img src="assets/icon.png" width="72" height="72" alt="" />
+        <h2 data-i18n="final.title">Give your servers a better window</h2>
+        <div class="hero-cta">
+          <a class="btn btn-primary btn-lg" href="#download"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path></svg><span data-i18n="final.download">Download CyberCat</span></a>
+          <a class="btn btn-ghost btn-lg" href="https://github.com/EdFtem/CyberCat" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.75 5.48.75 11.75c0 4.97 3.22 9.18 7.69 10.67.56.1.77-.24.77-.54 0-.27-.01-1.15-.02-2.08-3.13.68-3.79-1.34-3.79-1.34-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.72 2.63 1.22 3.27.93.1-.73.39-1.22.71-1.5-2.5-.28-5.13-1.25-5.13-5.57 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.16a10.8 10.8 0 0 1 5.64 0c2.15-1.46 3.1-1.16 3.1-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.8 1.16 3.03 0 4.33-2.64 5.28-5.15 5.56.4.35.76 1.03.76 2.08 0 1.5-.01 2.71-.01 3.08 0 .3.2.65.78.54 4.47-1.49 7.69-5.7 7.69-10.67C23.25 5.48 18.27.5 12 .5Z"/></svg><span data-i18n="final.star">Star on GitHub</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <a class="brand" href="#top"><img src="assets/icon.png" width="24" height="24" alt="" /><span>CyberCat</span></a>
+      <nav aria-label="Project links">
+        <a href="https://github.com/EdFtem/CyberCat" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/EdFtem/CyberCat/releases" target="_blank" rel="noopener" data-i18n="footer.releases">Releases</a>
+        <a href="https://github.com/EdFtem/CyberCat/issues" target="_blank" rel="noopener" data-i18n="footer.issues">Issues</a>
+        <a href="https://github.com/EdFtem/CyberCat/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener" data-i18n="footer.contributing">Contributing</a>
+        <a href="https://github.com/EdFtem/CyberCat/blob/main/SECURITY.md" target="_blank" rel="noopener" data-i18n="footer.security">Security</a>
+      </nav>
+      <p data-i18n="footer.license">© 2026 Eduard Ftemov · MIT license</p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Screenshot">
+    <button type="button" class="lightbox-close" aria-label="Close"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+    <img alt="" />
+  </dialog>
+</body>
+</html>

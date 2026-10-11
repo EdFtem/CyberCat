@@ -97,6 +97,12 @@ To try a build without publishing anything, run the workflow manually from the A
 
 To test the update flow without GitHub, serve a folder with a `latest*.yml` and the installer over HTTP and start the app with `CYBERCAT_UPDATE_FEED=http://localhost:8080/`.
 
+### Website
+
+The landing page lives in `site/`: plain HTML, CSS and JavaScript with no build step and no external requests besides the GitHub API (latest release and star count). Open `site/index.html` in a browser to preview it. The [Pages workflow](.github/workflows/pages.yml) publishes it to https://edftem.github.io/CyberCat/ on every push to `main` that touches `site/`. The download buttons read the newest release from the GitHub API, so they never need editing after a release.
+
+Screenshots in `site/assets/shots/` are WebP, 2400 px wide. Keep both languages in sync: English is in the HTML, Ukrainian in the `uk` table in `site/main.js`.
+
 ### Code signing
 
 No certificates are configured, which keeps releases free:
