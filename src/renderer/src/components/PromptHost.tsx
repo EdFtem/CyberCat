@@ -87,15 +87,15 @@ function PasswordDialog({ p, done }: { p: PasswordPrompt; done: Done }) {
   const submit = (): void => done({ password, save })
   return (
     <Modal
-      title={p.reason ? t.prompts.password.sudoTitle : t.prompts.password.title}
-      subtitle={`${p.username}@${p.host}`}
+      title={p.purpose === 's3' ? t.prompts.password.s3Title : p.purpose === 'sudo' ? t.prompts.password.sudoTitle : t.prompts.password.title}
+      subtitle={p.purpose === 's3' ? `${p.username} · ${p.host}` : `${p.username}@${p.host}`}
       width={420}
       onClose={() => done({ password: null, save: false })}
       footer={
         <>
           <Button onClick={() => done({ password: null, save: false })}>{t.common.cancel}</Button>
           <Button variant="primary" onClick={submit} disabled={!password}>
-            {p.reason ? t.common.continue : t.prompts.password.connect}
+            {p.purpose === 'sudo' ? t.common.continue : t.prompts.password.connect}
           </Button>
         </>
       }
@@ -109,13 +109,13 @@ function PasswordDialog({ p, done }: { p: PasswordPrompt; done: Done }) {
       >
         {/* The first sudo prompt only repeats user@host from the subtitle; show the reason once it says something new */}
         {p.reason && p.retry && <p className="text-[12.5px] text-danger">{p.reason}</p>}
-        <Field label={t.prompts.password.label}>
+        <Field label={p.purpose === 's3' ? t.prompts.password.s3Label : t.prompts.password.label}>
           <div className="relative">
             <Lock size={14} className="absolute left-2.5 top-2.5 text-dim" />
             <input className="input pl-8" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
           </div>
         </Field>
-        {p.canSave && <Checkbox checked={save} onChange={setSave} label={t.prompts.password.save} />}
+        {p.canSave && <Checkbox checked={save} onChange={setSave} label={p.purpose === 's3' ? t.prompts.password.s3Save : t.prompts.password.save} />}
       </form>
     </Modal>
   )

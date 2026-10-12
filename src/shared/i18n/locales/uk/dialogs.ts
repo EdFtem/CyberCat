@@ -72,6 +72,17 @@ export const dialogs: typeof en = {
     shortcuts: 'Цей список'
   },
 
+  shareTitle: 'Посилання для доступу',
+  shareHint: 'Будь-хто з цим посиланням зможе завантажити файл, доки воно діє. Нічого в бакеті не стає публічним.',
+  shareExpires: 'Діє',
+  share1h: '1 годину',
+  share1d: '1 день',
+  share7d: '7 днів',
+  shareCopy: 'Копіювати посилання',
+  shareCopied: 'Посилання скопійовано',
+  propS3Uri: 'S3 URI',
+  propBucket: 'Бакет S3',
+
   aboutTitle: 'Про CyberCat',
   aboutDescription: 'Графічний SSH/SFTP файловий менеджер. Electron, React, ssh2, Monaco, xterm.js.'
 }

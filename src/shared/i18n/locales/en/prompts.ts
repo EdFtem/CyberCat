@@ -22,7 +22,10 @@ export const prompts = {
     title: 'Enter password',
     label: 'Password',
     save: 'Save password in the profile (encrypted by the OS)',
-    connect: 'Connect'
+    connect: 'Connect',
+    s3Title: 'Secret access key',
+    s3Label: 'Secret access key',
+    s3Save: 'Save the secret in the profile (encrypted by the OS)'
   },
 
   passphrase: {

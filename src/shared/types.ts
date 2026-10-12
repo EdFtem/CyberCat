@@ -3,8 +3,30 @@ import type { Lang } from './i18n'
 
 export type AuthMethod = 'password' | 'key' | 'agent'
 
+/** SSH server, or an S3 bucket store (Amazon S3 or an S3-compatible service) */
+export type ConnectionKind = 'ssh' | 's3'
+
+export interface S3Settings {
+  /** keys: access key ID with the secret saved like a password; profile: a named profile from ~/.aws (SSO, assumed roles) */
+  auth: 'keys' | 'profile'
+  accessKeyId?: string
+  awsProfile?: string
+  /** Empty = from the AWS profile, otherwise us-east-1; requests follow bucket region redirects */
+  region?: string
+  /** Bucket to open at connect; empty = the list of buckets */
+  bucket?: string
+  /** S3-compatible services: MinIO, Cloudflare R2, DigitalOcean Spaces, Backblaze B2, Wasabi */
+  endpoint?: string
+  /** Path-style addressing (endpoint/bucket/key), which most self-hosted services need */
+  pathStyle?: boolean
+}
+
 export interface Profile {
   id: string
+  /** Absent in profiles saved before S3 support: ssh */
+  kind?: ConnectionKind
+  /** For kind s3; host, port and username then only label the connection */
+  s3?: S3Settings
   name: string
   host: string
   port: number
@@ -41,6 +63,8 @@ export interface FileEntry {
   linkTarget?: string
   /** for Windows drives in the local pane */
   isDrive?: boolean
+  /** S3 objects: the ETag, which is the MD5 of the content unless the object was uploaded in parts */
+  etag?: string
 }
 
 export interface ListResult {
@@ -52,6 +76,7 @@ export type SessionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disco
 
 export interface SessionInfo {
   id: string
+  kind: ConnectionKind
   profileId?: string
   name: string
   host: string
@@ -237,6 +262,8 @@ export interface PasswordPrompt {
   host: string
   username: string
   canSave: boolean
+  /** What the secret is for; absent = SSH login password */
+  purpose?: 'sudo' | 's3'
   reason?: string
   /** The previous password was rejected: the reason is shown as an error */
   retry?: boolean

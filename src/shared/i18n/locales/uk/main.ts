@@ -95,7 +95,8 @@ export const main: typeof en = {
   search: {
     nothingToFind: 'Вкажіть назву або текст для пошуку',
     noFolder: 'Не вказано теку для пошуку',
-    sftpContentWarning: 'Shell недоступний, пошук за вмістом виконано через SFTP і може бути повільним'
+    sftpContentWarning: 'Shell недоступний, пошук за вмістом виконано через SFTP і може бути повільним',
+    s3ContentWarning: 'Пошук за вмістом завантажує кожен відповідний об’єкт із бакета й може бути повільним'
   },
 
   tail: {
@@ -112,5 +113,26 @@ export const main: typeof en = {
     forwardingDenied:
       'Сервер забороняє перенаправлення портів (AllowTcpForwarding no у sshd_config) або порт недоступний',
     failed: (host, port) => `Тунель до ${host}:${port} не працює`
+  },
+
+  s3: {
+    notSupported: 'Недоступно для підключень S3',
+    noPermissions: 'Об’єкти S3 не мають прав доступу до файлів',
+    noAccessKey: 'Вкажіть ідентифікатор ключа доступу в налаштуваннях підключення',
+    secretPrompt: (keyId) => `Секретний ключ для ${keyId}`,
+    wrongSecretRetry: 'Невірний ідентифікатор ключа або секретний ключ, спробуйте ще раз',
+    authFailed: 'Невірний ідентифікатор ключа або секретний ключ',
+    expiredToken: 'Термін дії облікових даних минув. Оновіть їх і підключіться знову',
+    ssoExpired: (profile) => `Сесія SSO профілю ${profile} завершилася. Виконайте aws sso login --profile ${profile} і підключіться знову`,
+    profileFailed: (profile, error) => `Профіль AWS ${profile}: ${error}`,
+    accessDenied: (what) => `Доступ заборонено: ${what}`,
+    cannotListBuckets: 'Ці облікові дані не можуть переглядати список бакетів. Вкажіть бакет у налаштуваннях підключення або введіть /назва-бакета в рядку шляху',
+    noSuchBucket: (bucket) => `Бакета ${bucket} не існує`,
+    bucketNotEmpty: (bucket) => `Бакет ${bucket} не порожній. Спершу видаліть його вміст`,
+    notFound: (path) => `Немає такого файлу або теки: ${path}`,
+    unreachable: (host) => `Не вдалося з’єднатися з ${host}. Перевірте адресу й мережу`,
+    changedDuringTransfer: 'Об’єкт на сервері змінився під час передачі',
+    copyTooLarge: (name) => `${name} більший за 5 ГБ, а S3 не копіює такі об’єкти за один крок. Завантажте його й відвантажте знову`,
+    awsLabel: (region) => `Amazon S3 · ${region}`
   }
 }

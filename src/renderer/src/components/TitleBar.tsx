@@ -6,6 +6,7 @@ import { IconButton, StatusDot, Spinner } from './ui'
 import { formatTime } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { confirmInstallUpdate } from '@/lib/update'
+import { sessionAddress } from '@/lib/session'
 
 export function TitleBar() {
   const t = useT()
@@ -52,7 +53,7 @@ export function TitleBar() {
           const s = sessions[id]
           if (!s) return null
           return (
-            <Tab key={id} active={activeTab === id} onClick={() => setActiveTab(id)} title={`${s.username}@${s.host}:${s.port}`} color={s.color}>
+            <Tab key={id} active={activeTab === id} onClick={() => setActiveTab(id)} title={sessionAddress(s)} color={s.color}>
               {s.status === 'connecting' || s.status === 'reconnecting' ? <Spinner size={12} /> : <StatusDot status={s.status} />}
               <span className="truncate max-w-[180px]">{s.name}</span>
               <button

@@ -31,6 +31,10 @@ const api: Api = {
     setTitleBarOverlay: (o) => call('app:setTitleBarOverlay', o),
     getPathForFile: (f) => webUtils.getPathForFile(f)
   },
+  s3: {
+    presign: (sid, path, expiresIn) => call('s3:presign', sid, path, expiresIn),
+    awsProfiles: () => call('s3:awsProfiles')
+  },
   update: {
     status: () => call('update:status'),
     check: () => call('update:check'),

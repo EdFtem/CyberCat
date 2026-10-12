@@ -53,11 +53,37 @@ export const home: typeof en = {
   saveChanges: 'Зберегти зміни',
   saveProfile: 'Зберегти профіль',
 
+  newS3Description: 'Переглядайте бакети як теки, з відвантаженням і завантаженням, що продовжуються після обриву. Працює з Amazon S3 і сумісними сервісами.',
+
+  kindSsh: 'SSH / SFTP',
+  kindS3: 'Бакет S3',
+  s3: {
+    authKeys: 'Ключ доступу',
+    authProfile: 'Профіль AWS',
+    accessKeyId: 'Ідентифікатор ключа доступу',
+    secret: 'Секретний ключ доступу',
+    secretSavedHint: 'Секрет збережено. Введіть новий, щоб замінити.',
+    secretAskHint: 'Порожньо = запитати під час підключення',
+    saveSecret: 'Зберегти секрет (зашифровано системою)',
+    awsProfile: 'Профіль',
+    awsProfileHint: 'З ~/.aws/credentials або ~/.aws/config, тож SSO й ролі теж працюють. Для SSO спершу виконайте aws sso login.',
+    region: 'Регіон',
+    regionHint: 'Порожньо = з профілю або us-east-1. Бакети в інших регіонах знаходяться автоматично.',
+    bucket: 'Бакет',
+    bucketHint: 'Порожньо = список усіх бакетів',
+    endpoint: 'Endpoint',
+    endpointHint: 'Лише для S3-сумісних сервісів: MinIO, Cloudflare R2, DigitalOcean Spaces, Backblaze B2, Wasabi. Порожньо = Amazon S3.',
+    pathStyle: 'Адресація path-style (потрібна більшості власних серверів)',
+    service: 'Amazon S3'
+  },
+
   errors: {
     host: 'Вкажіть адресу сервера',
     username: 'Вкажіть користувача',
     port: 'Порт від 1 до 65535',
-    keyPath: 'Оберіть файл ключа'
+    keyPath: 'Оберіть файл ключа',
+    accessKeyId: 'Вкажіть ідентифікатор ключа доступу',
+    endpoint: 'Вкажіть повну адресу, наприклад https://s3.example.com'
   },
 
   saveFailed: 'Не вдалося зберегти профіль',

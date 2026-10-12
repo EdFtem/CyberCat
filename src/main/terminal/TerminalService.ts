@@ -20,7 +20,7 @@ class TerminalService {
   }
 
   async open(sessionId: string, cols: number, rows: number, cwd?: string, command?: string): Promise<string> {
-    const session = sessions.require(sessionId)
+    const session = sessions.requireSsh(sessionId)
     const stream = await session.shell(Math.max(cols, 10), Math.max(rows, 2))
     const id = randomUUID()
     this.terms.set(id, { stream, sessionId })

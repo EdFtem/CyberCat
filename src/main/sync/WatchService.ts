@@ -5,7 +5,7 @@ import { posix } from 'path'
 import { broadcast, toast } from '../broadcast'
 import { bus } from '../bus'
 import { sessions } from '../ssh/SessionManager'
-import { RemoteFs } from '../fs'
+import { sessionFs } from '../fs'
 import { transfers } from '../transfer/TransferManager'
 import { tr } from '../i18n'
 import type { WatchInfo } from '@shared/types'
@@ -84,7 +84,7 @@ class WatchService {
     const remoteParent = posix.join(info.remoteDir, posix.dirname(relPosix) === '.' ? '' : posix.dirname(relPosix))
     try {
       if (st.isDirectory()) {
-        await new RemoteFs(sessions.require(info.sessionId)).ensureDir(posix.join(info.remoteDir, relPosix))
+        await sessionFs(sessions.require(info.sessionId)).ensureDir(posix.join(info.remoteDir, relPosix))
       } else {
         await transfers.enqueue({
           sessionId: info.sessionId,

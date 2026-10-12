@@ -72,6 +72,17 @@ export const dialogs = {
     shortcuts: 'This list'
   },
 
+  shareTitle: 'Share link',
+  shareHint: 'Anyone with this link can download the file until it expires. Nothing in the bucket becomes public.',
+  shareExpires: 'Valid for',
+  share1h: '1 hour',
+  share1d: '1 day',
+  share7d: '7 days',
+  shareCopy: 'Copy link',
+  shareCopied: 'Link copied',
+  propS3Uri: 'S3 URI',
+  propBucket: 'S3 bucket',
+
   aboutTitle: 'About CyberCat',
   aboutDescription: 'Graphical SSH/SFTP file manager. Electron, React, ssh2, Monaco, xterm.js.'
 }

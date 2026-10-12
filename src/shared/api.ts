@@ -56,6 +56,12 @@ export interface Api {
     setTitleBarOverlay(o: { color: string; symbolColor: string }): Promise<void>
     getPathForFile(f: File): string
   }
+  s3: {
+    /** Presigned GET link to an object, valid for expiresIn seconds (at most 7 days) */
+    presign(sessionId: string, path: string, expiresIn: number): Promise<string>
+    /** Profile names from ~/.aws/credentials and ~/.aws/config */
+    awsProfiles(): Promise<string[]>
+  }
   update: {
     status(): Promise<UpdateStatus>
     /** Checks GitHub Releases now and reports errors and "up to date" back to the UI */

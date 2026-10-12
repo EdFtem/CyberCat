@@ -106,6 +106,7 @@ export class Session extends EventEmitter {
     super()
     this.info = {
       id,
+      kind: 'ssh',
       profileId: profile.id || undefined,
       name: profile.name || `${profile.username}@${profile.host}`,
       host: profile.host,
@@ -482,6 +483,7 @@ export class Session extends EventEmitter {
             host: this.profile.host,
             username: this.profile.username,
             canSave: false,
+            purpose: 'sudo',
             reason: attempt ? tr().main.sudo.wrongPasswordRetry : tr().main.sudo.passwordPrompt(this.profile.username, this.profile.host),
             retry: attempt > 0
           })

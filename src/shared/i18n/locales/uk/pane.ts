@@ -85,5 +85,7 @@ export const pane: typeof en = {
   batchRename: 'Масове перейменування…',
   permissionsMenu: 'Права доступу…',
   copyPath: 'Копіювати шлях',
-  properties: 'Властивості'
+  properties: 'Властивості',
+  copyS3Uri: 'Копіювати S3 URI',
+  shareLink: 'Посилання для доступу…'
 }

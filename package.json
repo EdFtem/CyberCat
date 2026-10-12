@@ -36,9 +36,13 @@
     "dist": "npm run build && electron-builder --publish never",
     "dist:dir": "npm run build && electron-builder --dir --publish never",
     "test:e2e": "esbuild tests/e2e.ts --bundle --platform=node --format=cjs --outfile=out/test/e2e.cjs --external:electron --external:ssh2 --external:iconv-lite --alias:@shared=./src/shared --log-level=warning && electron out/test/e2e.cjs",
+    "test:e2e:s3": "esbuild tests/e2e-s3.ts --bundle --platform=node --format=cjs --outfile=out/test/e2e-s3.cjs --external:electron --external:ssh2 --external:iconv-lite --external:@aws-sdk/* --external:@smithy/* --alias:@shared=./src/shared --log-level=warning && electron out/test/e2e-s3.cjs",
     "test:ui": "node tests/run-ui-smoke.cjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1141.0",
+    "@aws-sdk/credential-providers": "3.1141.0",
+    "@aws-sdk/s3-request-presigner": "3.1141.0",
     "electron-updater": "^6.8.9",
     "iconv-lite": "^0.7.3",
     "ssh2": "^1.17.0"

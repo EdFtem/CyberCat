@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Cat, FolderOpen, KeyRound, Lock, Fingerprint, Plus, Search, Server, Trash2, Plug, Save, Import } from 'lucide-react'
+import { Cat, Cloud, FolderOpen, KeyRound, Lock, Fingerprint, Plus, Search, Server, Trash2, Plug, Save, Import, UserRound } from 'lucide-react'
 import { useApp } from '@/store/app'
 import { cn } from '@/lib/cn'
-import type { AuthMethod, Profile } from '@shared/types'
+import type { AuthMethod, ConnectionKind, Profile } from '@shared/types'
 import { Button, Checkbox, Field, Segmented, EmptyState, Kbd, IconButton } from '../ui'
 import { rich, useT } from '@/lib/i18n'
+import { s3ServiceLabel } from '@/lib/session'
 
 const COLORS = ['', '#22d3ee', '#34d399', '#fbbf24', '#f97316', '#f87171', '#c084fc', '#60a5fa', '#f472b6']
 
 interface Form {
   id: string
+  kind: ConnectionKind
   name: string
   host: string
   port: string
@@ -25,11 +27,20 @@ interface Form {
   proxyJump: string
   createdAt: number
   hasPassword: boolean
+  // S3; the secret access key uses password, savePassword and hasPassword
+  s3Auth: 'keys' | 'profile'
+  accessKeyId: string
+  awsProfile: string
+  region: string
+  bucket: string
+  endpoint: string
+  pathStyle: boolean
 }
 
-function emptyForm(): Form {
+function emptyForm(kind: ConnectionKind = 'ssh'): Form {
   return {
     id: '',
+    kind,
     name: '',
     host: '',
     port: '22',
@@ -44,13 +55,22 @@ function emptyForm(): Form {
     localPath: '',
     proxyJump: '',
     createdAt: 0,
-    hasPassword: false
+    hasPassword: false,
+    s3Auth: 'keys',
+    accessKeyId: '',
+    awsProfile: '',
+    region: '',
+    bucket: '',
+    endpoint: '',
+    pathStyle: true
   }
 }
 
 function fromProfile(p: Profile): Form {
+  const s3 = p.s3
   return {
     id: p.id,
+    kind: p.kind ?? 'ssh',
     name: p.name,
     host: p.host,
     port: String(p.port),
@@ -65,11 +85,56 @@ function fromProfile(p: Profile): Form {
     localPath: p.localPath ?? '',
     proxyJump: p.proxyJump ?? '',
     createdAt: p.createdAt,
-    hasPassword: !!p.hasPassword
+    hasPassword: !!p.hasPassword,
+    s3Auth: s3?.auth ?? 'keys',
+    accessKeyId: s3?.accessKeyId ?? '',
+    awsProfile: s3?.awsProfile ?? '',
+    region: s3?.region ?? '',
+    bucket: s3?.bucket ?? '',
+    endpoint: s3?.endpoint ?? '',
+    pathStyle: s3?.pathStyle ?? true
+  }
+}
+
+function endpointHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host
+  } catch {
+    return endpoint
   }
 }
 
 function toProfile(f: Form): Profile {
+  if (f.kind === 's3') {
+    const endpoint = f.endpoint.trim()
+    const bucket = f.bucket.trim().replace(/^\/+|\/+$/g, '')
+    const host = endpoint ? endpointHost(endpoint) : 's3.amazonaws.com'
+    const keys = f.s3Auth === 'keys'
+    return {
+      id: f.id,
+      kind: 's3',
+      // host, port and username label the connection; the s3 block holds the real settings
+      name: f.name.trim() || (bucket ? `s3://${bucket}` : s3ServiceLabel(host)),
+      host,
+      port: 443,
+      username: keys ? f.accessKeyId.trim() : f.awsProfile.trim() || 'default',
+      auth: keys ? 'password' : 'agent',
+      savePassword: keys ? f.savePassword : false,
+      s3: {
+        auth: f.s3Auth,
+        accessKeyId: keys ? f.accessKeyId.trim() : undefined,
+        awsProfile: keys ? undefined : f.awsProfile.trim() || undefined,
+        region: f.region.trim() || undefined,
+        bucket: bucket || undefined,
+        endpoint: endpoint || undefined,
+        pathStyle: endpoint ? f.pathStyle : undefined
+      },
+      color: f.color || undefined,
+      group: f.group.trim() || undefined,
+      localPath: f.localPath.trim() || undefined,
+      createdAt: f.createdAt
+    }
+  }
   return {
     id: f.id,
     name: f.name.trim() || `${f.username.trim()}@${f.host.trim()}`,
@@ -101,6 +166,15 @@ export function ConnectionManager() {
   const [query, setQuery] = useState('')
   const [form, setForm] = useState<Form>(emptyForm())
   const [touched, setTouched] = useState(false)
+  const [awsProfiles, setAwsProfiles] = useState<string[]>([])
+
+  useEffect(() => {
+    if (form.kind !== 's3' || form.s3Auth !== 'profile') return
+    window.api.s3
+      .awsProfiles()
+      .then(setAwsProfiles)
+      .catch(() => setAwsProfiles([]))
+  }, [form.kind, form.s3Auth])
 
   useEffect(() => {
     if (selectedId) {
@@ -129,17 +203,22 @@ export function ConnectionManager() {
     setTouched(true)
   }
 
+  const ssh = form.kind === 'ssh'
   const errors = {
-    host: form.host.trim() ? null : t.home.errors.host,
-    username: form.username.trim() ? null : t.home.errors.username,
-    port: /^\d+$/.test(form.port) && Number(form.port) > 0 && Number(form.port) < 65536 ? null : t.home.errors.port,
-    keyPath: form.auth === 'key' && !form.keyPath.trim() ? t.home.errors.keyPath : null
+    host: !ssh || form.host.trim() ? null : t.home.errors.host,
+    username: !ssh || form.username.trim() ? null : t.home.errors.username,
+    port: !ssh || (/^\d+$/.test(form.port) && Number(form.port) > 0 && Number(form.port) < 65536) ? null : t.home.errors.port,
+    keyPath: ssh && form.auth === 'key' && !form.keyPath.trim() ? t.home.errors.keyPath : null,
+    accessKeyId: !ssh && form.s3Auth === 'keys' && !form.accessKeyId.trim() ? t.home.errors.accessKeyId : null,
+    endpoint: !ssh && form.endpoint.trim() && !/^https?:\/\/[^\s/]+/i.test(form.endpoint.trim()) ? t.home.errors.endpoint : null
   }
-  const valid = !errors.host && !errors.username && !errors.port && !errors.keyPath
+  const valid = Object.values(errors).every((e) => !e)
+  /** The password field holds the SSH password or the S3 secret access key */
+  const usesSecret = ssh ? form.auth === 'password' : form.s3Auth === 'keys'
 
   const startNew = (): void => {
     setSelectedId(null)
-    setForm(emptyForm())
+    setForm(emptyForm(form.kind))
     setTouched(false)
   }
 
@@ -147,7 +226,7 @@ export function ConnectionManager() {
     setTouched(true)
     if (!valid) return null
     try {
-      const pw = form.auth === 'password' ? (form.password ? form.password : form.savePassword ? undefined : null) : null
+      const pw = usesSecret ? (form.password ? form.password : form.savePassword ? undefined : null) : null
       const saved = await saveProfile(toProfile(form), pw)
       setSelectedId(saved.id)
       setForm({ ...fromProfile(saved), password: '' })
@@ -183,6 +262,49 @@ export function ConnectionManager() {
       }
     })
   }
+
+
+  const localPathField = (
+    <Field label={t.home.localPath} hint={t.home.homeFolderHint}>
+      <div className="flex gap-2">
+        <input className="input input-mono flex-1" value={form.localPath} onChange={(e) => set({ localPath: e.target.value })} spellCheck={false} />
+        <Button
+          icon={<FolderOpen size={14} />}
+          onClick={async () => {
+            const p = await window.api.app.pickDirectory({ title: t.home.pickLocalFolderTitle })
+            if (p) set({ localPath: p })
+          }}
+        />
+      </div>
+    </Field>
+  )
+
+  const groupColorRow = (
+    <div className="grid grid-cols-2 gap-4">
+      <Field label={t.home.group} hint={t.home.groupHint}>
+        <input className="input" list="cc-groups" value={form.group} onChange={(e) => set({ group: e.target.value })} />
+        <datalist id="cc-groups">
+          {allGroups.map((g) => (
+            <option key={g} value={g} />
+          ))}
+        </datalist>
+      </Field>
+      <Field label={t.home.color}>
+        <div className="flex items-center gap-1.5 h-8">
+          {COLORS.map((c) => (
+            <button
+              key={c || 'none'}
+              type="button"
+              onClick={() => set({ color: c })}
+              className={cn('h-6 w-6 rounded-full border-2 transition-transform hover:scale-110', form.color === c ? 'border-text' : 'border-transparent')}
+              style={{ background: c || 'var(--surface-4)' }}
+              title={c || t.home.noColor}
+            />
+          ))}
+        </div>
+      </Field>
+    </div>
+  )
 
   return (
     <div className="flex h-full min-h-0">
@@ -222,21 +344,45 @@ export function ConnectionManager() {
                     )}
                   >
                     <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-md bg-surface-3 text-muted shrink-0">
-                      <Server size={15} />
+                      {p.kind === 's3' ? <Cloud size={15} /> : <Server size={15} />}
                       {p.color && <span className="absolute -left-1 top-1 bottom-1 w-[3px] rounded-full" style={{ background: p.color }} />}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-medium">{p.name}</span>
                       <span className="block truncate text-[11.5px] text-dim font-mono">
-                        {p.username}@{p.host}
-                        {p.port !== 22 && `:${p.port}`}
+                        {p.kind === 's3' ? (
+                          p.s3?.bucket ? `s3://${p.s3.bucket}` : s3ServiceLabel(p.host)
+                        ) : (
+                          <>
+                            {p.username}@{p.host}
+                            {p.port !== 22 && `:${p.port}`}
+                          </>
+                        )}
                       </span>
                     </span>
                     <span
                       className="text-dim shrink-0 group-hover:opacity-0 group-focus-within:opacity-0 transition-opacity"
-                      title={p.auth === 'key' ? t.home.auth.key : p.auth === 'agent' ? t.home.auth.agent : t.home.auth.password}
+                      title={
+                        p.kind === 's3'
+                          ? p.s3?.auth === 'profile'
+                            ? t.home.s3.authProfile
+                            : t.home.s3.authKeys
+                          : p.auth === 'key'
+                            ? t.home.auth.key
+                            : p.auth === 'agent'
+                              ? t.home.auth.agent
+                              : t.home.auth.password
+                      }
                     >
-                      {p.auth === 'key' ? <KeyRound size={13} /> : p.auth === 'agent' ? <Fingerprint size={13} /> : <Lock size={13} />}
+                      {p.kind === 's3' ? (
+                        p.s3?.auth === 'profile' ? <UserRound size={13} /> : <KeyRound size={13} />
+                      ) : p.auth === 'key' ? (
+                        <KeyRound size={13} />
+                      ) : p.auth === 'agent' ? (
+                        <Fingerprint size={13} />
+                      ) : (
+                        <Lock size={13} />
+                      )}
                     </span>
                   </button>
                   {/* One-click connect, so double-click is not the only way */}
@@ -268,7 +414,7 @@ export function ConnectionManager() {
             <div className="min-w-0">
               <h1 className="text-[20px] font-semibold leading-tight">{form.id ? form.name || t.home.profileFallback : t.home.newConnection}</h1>
               <p className="text-[13px] text-muted mt-1">
-                {form.id ? t.home.editDescription : t.home.newDescription}
+                {form.id ? t.home.editDescription : ssh ? t.home.newDescription : t.home.newS3Description}
               </p>
             </div>
           </div>
@@ -280,109 +426,152 @@ export function ConnectionManager() {
               void doConnect()
             }}
           >
-            <div className="card p-5 space-y-4">
-              <div className="grid grid-cols-[1fr_120px] gap-4">
-                <Field label={t.home.host} error={touched ? errors.host : null}>
-                  <input className="input input-mono" placeholder={t.home.hostPlaceholder} value={form.host} onChange={(e) => set({ host: e.target.value })} autoFocus spellCheck={false} />
-                </Field>
-                <Field label={t.home.port} error={touched ? errors.port : null}>
-                  <input className="input input-mono" value={form.port} onChange={(e) => set({ port: e.target.value })} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label={t.home.username} error={touched ? errors.username : null}>
-                  <input className="input input-mono" placeholder="root" value={form.username} onChange={(e) => set({ username: e.target.value })} spellCheck={false} />
-                </Field>
-                <Field label={t.home.profileName} hint={t.home.profileNameHint}>
-                  <input className="input" placeholder={t.home.profileNamePlaceholder} value={form.name} onChange={(e) => set({ name: e.target.value })} />
-                </Field>
-              </div>
+            <Segmented<ConnectionKind>
+              value={form.kind}
+              onChange={(kind) => setForm((f) => ({ ...f, kind }))}
+              options={[
+                { value: 'ssh', label: t.home.kindSsh, icon: <Server size={13} /> },
+                { value: 's3', label: t.home.kindS3, icon: <Cloud size={13} /> }
+              ]}
+            />
 
-              <Field label={t.home.authentication}>
-                <Segmented
-                  value={form.auth}
-                  onChange={(v) => set({ auth: v })}
-                  options={[
-                    { value: 'password', label: t.home.auth.password, icon: <Lock size={13} /> },
-                    { value: 'key', label: t.home.auth.key, icon: <KeyRound size={13} /> },
-                    { value: 'agent', label: t.home.auth.agent, icon: <Fingerprint size={13} /> }
-                  ]}
-                />
-              </Field>
-
-              {form.auth === 'password' && (
-                <div className="grid grid-cols-2 gap-4 items-end">
-                  <Field label={t.home.password} hint={form.hasPassword && !form.password ? t.home.passwordSavedHint : t.home.passwordAskHint}>
-                    <input className="input" type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} placeholder={form.hasPassword ? '••••••••' : ''} />
-                  </Field>
-                  <Checkbox className="mb-2" checked={form.savePassword} onChange={(v) => set({ savePassword: v })} label={t.home.savePassword} />
-                </div>
-              )}
-              {form.auth === 'key' && (
-                <Field label={t.home.privateKey} error={touched ? errors.keyPath : null} hint={t.home.privateKeyHint}>
-                  <div className="flex gap-2">
-                    <input className="input input-mono flex-1" placeholder="C:\Users\you\.ssh\id_ed25519" value={form.keyPath} onChange={(e) => set({ keyPath: e.target.value })} spellCheck={false} />
-                    <Button
-                      icon={<FolderOpen size={14} />}
-                      onClick={async () => {
-                        const p = await window.api.app.pickFile({ title: t.home.pickKeyTitle })
-                        if (p) set({ keyPath: p })
-                      }}
-                    >
-                      {t.common.browse}
-                    </Button>
+            {ssh ? (
+              <>
+                <div className="card p-5 space-y-4">
+                  <div className="grid grid-cols-[1fr_120px] gap-4">
+                    <Field label={t.home.host} error={touched ? errors.host : null}>
+                      <input className="input input-mono" placeholder={t.home.hostPlaceholder} value={form.host} onChange={(e) => set({ host: e.target.value })} autoFocus spellCheck={false} />
+                    </Field>
+                    <Field label={t.home.port} error={touched ? errors.port : null}>
+                      <input className="input input-mono" value={form.port} onChange={(e) => set({ port: e.target.value })} />
+                    </Field>
                   </div>
-                </Field>
-              )}
-              {form.auth === 'agent' && <p className="text-[12.5px] text-muted">{t.home.agentInfo}</p>}
-            </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label={t.home.username} error={touched ? errors.username : null}>
+                      <input className="input input-mono" placeholder="root" value={form.username} onChange={(e) => set({ username: e.target.value })} spellCheck={false} />
+                    </Field>
+                    <Field label={t.home.profileName} hint={t.home.profileNameHint}>
+                      <input className="input" placeholder={t.home.profileNamePlaceholder} value={form.name} onChange={(e) => set({ name: e.target.value })} />
+                    </Field>
+                  </div>
 
-            <div className="card p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label={t.home.remotePath} hint={t.home.homeFolderHint}>
-                  <input className="input input-mono" placeholder="/var/www" value={form.remotePath} onChange={(e) => set({ remotePath: e.target.value })} spellCheck={false} />
-                </Field>
-                <Field label={t.home.localPath} hint={t.home.homeFolderHint}>
-                  <div className="flex gap-2">
-                    <input className="input input-mono flex-1" value={form.localPath} onChange={(e) => set({ localPath: e.target.value })} spellCheck={false} />
-                    <Button
-                      icon={<FolderOpen size={14} />}
-                      onClick={async () => {
-                        const p = await window.api.app.pickDirectory({ title: t.home.pickLocalFolderTitle })
-                        if (p) set({ localPath: p })
-                      }}
+                  <Field label={t.home.authentication}>
+                    <Segmented
+                      value={form.auth}
+                      onChange={(v) => set({ auth: v })}
+                      options={[
+                        { value: 'password', label: t.home.auth.password, icon: <Lock size={13} /> },
+                        { value: 'key', label: t.home.auth.key, icon: <KeyRound size={13} /> },
+                        { value: 'agent', label: t.home.auth.agent, icon: <Fingerprint size={13} /> }
+                      ]}
                     />
+                  </Field>
+
+                  {form.auth === 'password' && (
+                    <div className="grid grid-cols-2 gap-4 items-end">
+                      <Field label={t.home.password} hint={form.hasPassword && !form.password ? t.home.passwordSavedHint : t.home.passwordAskHint}>
+                        <input className="input" type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} placeholder={form.hasPassword ? '••••••••' : ''} />
+                      </Field>
+                      <Checkbox className="mb-2" checked={form.savePassword} onChange={(v) => set({ savePassword: v })} label={t.home.savePassword} />
+                    </div>
+                  )}
+                  {form.auth === 'key' && (
+                    <Field label={t.home.privateKey} error={touched ? errors.keyPath : null} hint={t.home.privateKeyHint}>
+                      <div className="flex gap-2">
+                        <input className="input input-mono flex-1" placeholder="C:\Users\you\.ssh\id_ed25519" value={form.keyPath} onChange={(e) => set({ keyPath: e.target.value })} spellCheck={false} />
+                        <Button
+                          icon={<FolderOpen size={14} />}
+                          onClick={async () => {
+                            const p = await window.api.app.pickFile({ title: t.home.pickKeyTitle })
+                            if (p) set({ keyPath: p })
+                          }}
+                        >
+                          {t.common.browse}
+                        </Button>
+                      </div>
+                    </Field>
+                  )}
+                  {form.auth === 'agent' && <p className="text-[12.5px] text-muted">{t.home.agentInfo}</p>}
+                </div>
+
+                <div className="card p-5 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label={t.home.remotePath} hint={t.home.homeFolderHint}>
+                      <input className="input input-mono" placeholder="/var/www" value={form.remotePath} onChange={(e) => set({ remotePath: e.target.value })} spellCheck={false} />
+                    </Field>
+                    {localPathField}
                   </div>
-                </Field>
-              </div>
-              <Field label={t.home.proxyJump} hint={t.home.proxyJumpHint}>
-                <input className="input input-mono" placeholder="jump@bastion.example.com" value={form.proxyJump} onChange={(e) => set({ proxyJump: e.target.value })} spellCheck={false} />
-              </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label={t.home.group} hint={t.home.groupHint}>
-                  <input className="input" list="cc-groups" value={form.group} onChange={(e) => set({ group: e.target.value })} />
-                  <datalist id="cc-groups">
-                    {allGroups.map((g) => (
-                      <option key={g} value={g} />
-                    ))}
-                  </datalist>
-                </Field>
-                <Field label={t.home.color}>
-                  <div className="flex items-center gap-1.5 h-8">
-                    {COLORS.map((c) => (
-                      <button
-                        key={c || 'none'}
-                        type="button"
-                        onClick={() => set({ color: c })}
-                        className={cn('h-6 w-6 rounded-full border-2 transition-transform hover:scale-110', form.color === c ? 'border-text' : 'border-transparent')}
-                        style={{ background: c || 'var(--surface-4)' }}
-                        title={c || t.home.noColor}
-                      />
-                    ))}
+                  <Field label={t.home.proxyJump} hint={t.home.proxyJumpHint}>
+                    <input className="input input-mono" placeholder="jump@bastion.example.com" value={form.proxyJump} onChange={(e) => set({ proxyJump: e.target.value })} spellCheck={false} />
+                  </Field>
+                  {groupColorRow}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="card p-5 space-y-4">
+                  <Field label={t.home.authentication}>
+                    <Segmented
+                      value={form.s3Auth}
+                      onChange={(v) => set({ s3Auth: v })}
+                      options={[
+                        { value: 'keys', label: t.home.s3.authKeys, icon: <KeyRound size={13} /> },
+                        { value: 'profile', label: t.home.s3.authProfile, icon: <UserRound size={13} /> }
+                      ]}
+                    />
+                  </Field>
+                  {form.s3Auth === 'keys' ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label={t.home.s3.accessKeyId} error={touched ? errors.accessKeyId : null}>
+                          <input className="input input-mono" placeholder="AKIA…" value={form.accessKeyId} onChange={(e) => set({ accessKeyId: e.target.value })} autoFocus spellCheck={false} />
+                        </Field>
+                        <Field label={t.home.profileName}>
+                          <input className="input" placeholder={t.home.profileNamePlaceholder} value={form.name} onChange={(e) => set({ name: e.target.value })} />
+                        </Field>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 items-end">
+                        <Field label={t.home.s3.secret} hint={form.hasPassword && !form.password ? t.home.s3.secretSavedHint : t.home.s3.secretAskHint}>
+                          <input className="input input-mono" type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} placeholder={form.hasPassword ? '••••••••' : ''} />
+                        </Field>
+                        <Checkbox className="mb-2" checked={form.savePassword} onChange={(v) => set({ savePassword: v })} label={t.home.s3.saveSecret} />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label={t.home.s3.awsProfile} hint={t.home.s3.awsProfileHint}>
+                        <input className="input input-mono" list="cc-aws-profiles" placeholder="default" value={form.awsProfile} onChange={(e) => set({ awsProfile: e.target.value })} autoFocus spellCheck={false} />
+                        <datalist id="cc-aws-profiles">
+                          {awsProfiles.map((p) => (
+                            <option key={p} value={p} />
+                          ))}
+                        </datalist>
+                      </Field>
+                      <Field label={t.home.profileName}>
+                        <input className="input" placeholder={t.home.profileNamePlaceholder} value={form.name} onChange={(e) => set({ name: e.target.value })} />
+                      </Field>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label={t.home.s3.bucket} hint={t.home.s3.bucketHint}>
+                      <input className="input input-mono" placeholder="my-bucket" value={form.bucket} onChange={(e) => set({ bucket: e.target.value })} spellCheck={false} />
+                    </Field>
+                    <Field label={t.home.s3.region} hint={t.home.s3.regionHint}>
+                      <input className="input input-mono" placeholder="eu-central-1" value={form.region} onChange={(e) => set({ region: e.target.value })} spellCheck={false} />
+                    </Field>
                   </div>
-                </Field>
-              </div>
-            </div>
+                </div>
+
+                <div className="card p-5 space-y-4">
+                  <Field label={t.home.s3.endpoint} hint={t.home.s3.endpointHint} error={touched ? errors.endpoint : null}>
+                    <input className="input input-mono" placeholder="https://<account>.r2.cloudflarestorage.com" value={form.endpoint} onChange={(e) => set({ endpoint: e.target.value })} spellCheck={false} />
+                  </Field>
+                  {form.endpoint.trim() && <Checkbox checked={form.pathStyle} onChange={(v) => set({ pathStyle: v })} label={t.home.s3.pathStyle} />}
+                  <div className="grid grid-cols-2 gap-4">{localPathField}</div>
+                  {groupColorRow}
+                </div>
+              </>
+            )}
 
             <div className="flex items-center gap-2">
               <Button type="submit" variant="primary" icon={<Plug size={15} />} loading={connecting} disabled={touched && !valid}>

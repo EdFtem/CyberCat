@@ -5,6 +5,7 @@ import { selectedEntries } from '@/lib/ops'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
+import { sessionAddress } from '@/lib/session'
 import { Button, Spinner, StatusDot, Badge } from '../ui'
 import { FilePane } from '../pane/FilePane'
 import { EditorView } from '../editor/EditorView'
@@ -42,8 +43,10 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
 
   useEffect(() => {
     if (!visible) return
+    // S3 connections have no shell: no terminal, no Docker
+    const shell = session?.kind !== 's3'
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+      if (shell && (e.ctrlKey || e.metaKey) && e.key === '`') {
         e.preventDefault()
         toggleTerminal(sid)
       }
@@ -51,14 +54,14 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
         e.preventDefault()
         setEditorVisible(sid, !ui.editorVisible)
       }
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd' && ui) {
+      if (shell && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd' && ui) {
         e.preventDefault()
         setDockerOpen(sid, !ui.dockerOpen)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visible, sid, ui?.docs.length, ui?.editorVisible, ui?.dockerOpen, ui, toggleTerminal, setEditorVisible, setDockerOpen])
+  }, [visible, sid, ui?.docs.length, ui?.editorVisible, ui?.dockerOpen, ui, toggleTerminal, setEditorVisible, setDockerOpen, session?.kind])
 
   const onSplitMove = useCallback(
     (e: MouseEvent) => {
@@ -116,7 +119,7 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
               <h2 className="text-[16px] font-semibold mt-3">{t.session.connectFailed}</h2>
               <p className="text-[13px] text-muted mt-2 whitespace-pre-wrap">{session.error ?? t.common.unknownError}</p>
               <p className="text-[12px] text-dim mt-2 font-mono">
-                {session.username}@{session.host}:{session.port}
+                {sessionAddress(session)}
               </p>
               <div className="flex justify-center gap-2 mt-5">
                 <Button variant="primary" icon={<RotateCcw size={14} />} onClick={() => void reconnect(sid)}>
@@ -132,7 +135,7 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
               <Spinner size={30} className="mx-auto" />
               <h2 className="text-[16px] font-semibold mt-3">{t.session.connecting}</h2>
               <p className="text-[12.5px] text-dim mt-2 font-mono">
-                {session.username}@{session.host}:{session.port}
+                {sessionAddress(session)}
               </p>
               <Button className="mt-5" onClick={() => void closeTab(sid)}>
                 {t.common.cancel}
@@ -206,11 +209,15 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
         <span className="inline-flex items-center gap-1.5">
           <StatusDot status={session.status} />
           <span className="text-muted font-mono">
-            {session.username}@{session.host}
-            {session.port !== 22 && `:${session.port}`}
+            {sessionAddress(session)}
           </span>
         </span>
-        {connected && <Badge tone={session.hasShell ? 'success' : 'warning'}>{session.hasShell ? 'SFTP + shell' : t.session.sftpOnly}</Badge>}
+        {connected &&
+          (session.kind === 's3' ? (
+            <Badge tone="accent">S3</Badge>
+          ) : (
+            <Badge tone={session.hasShell ? 'success' : 'warning'}>{session.hasShell ? 'SFTP + shell' : t.session.sftpOnly}</Badge>
+          ))}
         {sel.length > 0 && (
           <span>{t.session.selection(ui.activePane, sel.length, selSize > 0 ? formatBytes(selSize) : undefined)}</span>
         )}
@@ -220,12 +227,16 @@ export function SessionView({ sid, visible }: { sid: string; visible: boolean })
             <Code2 size={13} /> {t.session.editorFiles(ui.docs.length)}
           </StatusButton>
         )}
-        <StatusButton title="Docker (Ctrl+Shift+D)" active={ui.dockerOpen} onClick={() => setDockerOpen(sid, !ui.dockerOpen)} disabled={!connected || !session.hasShell}>
-          <Container size={13} /> Docker
-        </StatusButton>
-        <StatusButton title={t.session.terminalTitle} active={ui.terminalOpen} onClick={() => toggleTerminal(sid)} disabled={!connected}>
-          <TerminalIcon size={13} /> {t.terminal.title}
-        </StatusButton>
+        {session.kind !== 's3' && (
+          <>
+            <StatusButton title="Docker (Ctrl+Shift+D)" active={ui.dockerOpen} onClick={() => setDockerOpen(sid, !ui.dockerOpen)} disabled={!connected || !session.hasShell}>
+              <Container size={13} /> Docker
+            </StatusButton>
+            <StatusButton title={t.session.terminalTitle} active={ui.terminalOpen} onClick={() => toggleTerminal(sid)} disabled={!connected}>
+              <TerminalIcon size={13} /> {t.terminal.title}
+            </StatusButton>
+          </>
+        )}
       </div>
     </div>
   )

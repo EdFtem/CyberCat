@@ -19,6 +19,29 @@ export const home = {
   profileFallback: 'Profile',
   editDescription: 'Edit the settings and connect. Changes are saved when you connect.',
   newDescription: 'Connect right away, or save a profile to get back to this server in one click.',
+  newS3Description: 'Browse buckets like folders, with resumable uploads and downloads. Works with Amazon S3 and S3-compatible services.',
+
+  kindSsh: 'SSH / SFTP',
+  kindS3: 'S3 bucket',
+  s3: {
+    authKeys: 'Access key',
+    authProfile: 'AWS profile',
+    accessKeyId: 'Access key ID',
+    secret: 'Secret access key',
+    secretSavedHint: 'Secret saved. Enter a new one to replace it.',
+    secretAskHint: 'Empty = ask when connecting',
+    saveSecret: 'Save the secret (encrypted by the OS)',
+    awsProfile: 'Profile',
+    awsProfileHint: 'From ~/.aws/credentials or ~/.aws/config, so SSO and assumed roles work too. For SSO, run aws sso login first.',
+    region: 'Region',
+    regionHint: 'Empty = from the profile, or us-east-1. Buckets in other regions are found automatically.',
+    bucket: 'Bucket',
+    bucketHint: 'Empty = list all buckets',
+    endpoint: 'Endpoint',
+    endpointHint: 'Only for S3-compatible services: MinIO, Cloudflare R2, DigitalOcean Spaces, Backblaze B2, Wasabi. Empty = Amazon S3.',
+    pathStyle: 'Path-style addressing (most self-hosted services need it)',
+    service: 'Amazon S3'
+  },
 
   host: 'Host',
   hostPlaceholder: 'example.com or 10.0.0.5',
@@ -57,7 +80,9 @@ export const home = {
     host: 'Enter the server address',
     username: 'Enter a username',
     port: 'Port must be between 1 and 65535',
-    keyPath: 'Choose a key file'
+    keyPath: 'Choose a key file',
+    accessKeyId: 'Enter an access key ID',
+    endpoint: 'Enter a full URL, for example https://s3.example.com'
   },
 
   saveFailed: 'Could not save profile',

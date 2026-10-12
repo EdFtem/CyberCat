@@ -14,6 +14,7 @@ export const compare = {
   remoteDir: 'Server folder',
   run: 'Compare',
   byHash: 'Compare contents by sha256 for files of the same size (slower)',
+  byHashS3: 'Compare contents by MD5 (the object ETag) for files of the same size',
 
   scanning: 'Scanning folders…',
   hint: 'Click “Compare” to see the differences',

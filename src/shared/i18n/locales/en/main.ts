@@ -96,7 +96,8 @@ export const main = {
   search: {
     nothingToFind: 'Enter a name or text to search for',
     noFolder: 'No folder specified for the search',
-    sftpContentWarning: 'Shell is not available, so the content search ran over SFTP and may be slow'
+    sftpContentWarning: 'Shell is not available, so the content search ran over SFTP and may be slow',
+    s3ContentWarning: 'Content search downloads every matching object from the bucket and may be slow'
   },
 
   tail: {
@@ -114,5 +115,26 @@ export const main = {
     forwardingDenied:
       'The server does not allow port forwarding (AllowTcpForwarding no in sshd_config) or the port is unavailable',
     failed: (host: string, port: number) => `Tunnel to ${host}:${port} is not working`
+  },
+
+  s3: {
+    notSupported: 'Not available for S3 connections',
+    noPermissions: 'S3 objects have no file permissions',
+    noAccessKey: 'Enter an access key ID in the connection settings',
+    secretPrompt: (keyId: string) => `Secret access key for ${keyId}`,
+    wrongSecretRetry: 'The access key ID or secret access key is wrong, try again',
+    authFailed: 'The access key ID or secret access key is wrong',
+    expiredToken: 'The credentials have expired. Refresh them and connect again',
+    ssoExpired: (profile: string) => `The SSO session of profile ${profile} has expired. Run aws sso login --profile ${profile} and connect again`,
+    profileFailed: (profile: string, error: string) => `AWS profile ${profile}: ${error}`,
+    accessDenied: (what: string) => `Access denied: ${what}`,
+    cannotListBuckets: 'These credentials cannot list buckets. Enter a bucket in the connection settings, or type /bucket-name in the path bar',
+    noSuchBucket: (bucket: string) => `Bucket ${bucket} does not exist`,
+    bucketNotEmpty: (bucket: string) => `Bucket ${bucket} is not empty. Delete its contents first`,
+    notFound: (path: string) => `No such file or folder: ${path}`,
+    unreachable: (host: string) => `Cannot reach ${host}. Check the endpoint and your network`,
+    changedDuringTransfer: 'The object changed on the server during the transfer',
+    copyTooLarge: (name: string) => `${name} is larger than 5 GB, which S3 cannot copy in one step. Download it and upload it instead`,
+    awsLabel: (region: string) => `Amazon S3 · ${region}`
   }
 }

@@ -32,6 +32,7 @@ tests           Backend end-to-end test and UI smoke test
 npm run typecheck     # TypeScript, main + renderer
 npm run build         # production bundles
 npm run test:e2e      # backend against a local test sshd (see below)
+npm run test:e2e:s3   # S3 backend against a local S3 server (see the README)
 npm run test:ui       # screenshots into out/shots/
 ```
 
@@ -47,6 +48,7 @@ docker run -d --name cybercat-sshd -p 2222:2222 -e PUID=1000 -e PGID=1000 \
 
 - Keep the main process free of UI concerns and the renderer free of Node APIs. Everything crosses through `src/shared/api.ts`.
 - Anything that talks to a server must work over plain SFTP and only use `exec` as an optimization when `session.info.hasShell` is true.
+- File features go through the `FsAdapter` returned by `getFs()` / `sessionFs()`, so they work for SSH and S3 alike. Features that need SSH itself (shell, terminal, sudo, Docker, tunnels) use `sessions.requireSsh()` and are hidden for S3 sessions in the UI.
 - Prefer small, focused PRs with a short description of what changed and why. Screenshots help for UI changes.
 - Match the existing code style; Prettier settings are in `.prettierrc`.
 - Never hard-code user-facing text. Every string shown to the user, including error messages thrown in the main process, goes through the translation dictionaries described below.

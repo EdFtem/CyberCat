@@ -86,5 +86,7 @@ export const pane = {
   batchRename: 'Batch rename…',
   permissionsMenu: 'Permissions…',
   copyPath: 'Copy path',
-  properties: 'Properties'
+  properties: 'Properties',
+  copyS3Uri: 'Copy S3 URI',
+  shareLink: 'Share link…'
 }

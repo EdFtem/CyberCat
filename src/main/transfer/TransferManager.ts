@@ -1,14 +1,27 @@
 import { randomUUID } from 'crypto'
 import { promises as fsp } from 'fs'
 import type { FileHandle } from 'fs/promises'
+import { Readable } from 'stream'
 import type { SFTPWrapper } from 'ssh2'
+import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  UploadPartCommand
+} from '@aws-sdk/client-s3'
 import { broadcast, toast } from '../broadcast'
 import { bus } from '../bus'
 import { prompt } from '../prompter'
-import { sessions } from '../ssh/SessionManager'
+import { sessions, type AnySession } from '../ssh/SessionManager'
 import type { Session } from '../ssh/Session'
+import { S3Session, s3ErrorInfo } from '../s3/S3Session'
+import { contentTypeFor } from '../s3/mime'
 import { localFs } from '../fs/LocalFs'
-import { RemoteFs } from '../fs/RemoteFs'
+import { sessionFs } from '../fs'
+import { parseS3Path } from '../fs/S3Fs'
 import type { FsAdapter } from '../fs/types'
 import { settings } from '../store/settings'
 import { tr } from '../i18n'
@@ -25,12 +38,48 @@ import type {
 const CHUNK = 32 * 1024
 const CONCURRENT_CHUNKS = 32
 
+const MiB = 1024 * 1024
+/** S3 downloads: ranged GETs */
+const S3_CHUNK = 8 * MiB
+const S3_DOWNLOAD_CONCURRENCY = 4
+/** S3 uploads: parts of at least 5 MiB (S3's minimum), at most 10,000 of them */
+const S3_PART = 8 * MiB
+const S3_MAX_PARTS = 10_000
+const S3_UPLOAD_CONCURRENCY = 4
+/** Smaller files go up in one PUT */
+const S3_MULTIPART_MIN = 16 * MiB
+const S3_ATTEMPTS = 3
+
+/** A request body that reports bytes as the HTTP layer reads them, so progress moves within a part */
+function countingBody(data: Buffer, onBytes: (n: number) => void): Readable {
+  const STEP = 64 * 1024
+  let off = 0
+  return new Readable({
+    read() {
+      if (off >= data.length) {
+        this.push(null)
+        return
+      }
+      const piece = data.subarray(off, Math.min(off + STEP, data.length))
+      off += piece.length
+      onBytes(piece.length)
+      this.push(piece)
+    }
+  })
+}
+
 /** Controls one active transfer: pause, cancel */
 class Ctrl {
   paused = false
   cancelled = false
   aborted = false
   private waiters: (() => void)[] = []
+  private controller = new AbortController()
+
+  /** Aborted on cancel or error, which stops in-flight S3 requests at once */
+  get signal(): AbortSignal {
+    return this.controller.signal
+  }
 
   waitIfPaused(): Promise<void> {
     if (!this.paused) return Promise.resolve()
@@ -45,10 +94,12 @@ class Ctrl {
   }
   cancel(): void {
     this.cancelled = true
+    this.controller.abort()
     this.resume()
   }
   abort(): void {
     this.aborted = true
+    this.controller.abort()
     this.resume()
   }
   get stop(): boolean {
@@ -64,6 +115,20 @@ interface Internal {
   deleteSource?: boolean
   /** All actions on the item are finished, including deleting the source */
   settled?: boolean
+  /** S3 multipart upload kept across pause, error and retry; aborted on cancel or removal so parts don't linger */
+  s3Upload?: S3Upload
+  /** ETag of the S3 object being downloaded: a resume must continue the same version */
+  s3ETag?: string
+}
+
+interface S3Upload {
+  sessionId: string
+  uploadId: string
+  bucket: string
+  key: string
+  partSize: number
+  /** part number -> ETag */
+  parts: Map<number, string>
 }
 
 interface Batch {
@@ -165,8 +230,8 @@ class TransferManager {
     }, 500)
   }
 
-  private adapters(session: Session, direction: TransferItem['direction']): { srcFs: FsAdapter; dstFs: FsAdapter } {
-    const remote = new RemoteFs(session)
+  private adapters(session: AnySession, direction: TransferItem['direction']): { srcFs: FsAdapter; dstFs: FsAdapter } {
+    const remote = sessionFs(session)
     return direction === 'upload' ? { srcFs: localFs, dstFs: remote } : { srcFs: remote, dstFs: localFs }
   }
 
@@ -245,7 +310,7 @@ class TransferManager {
     srcFs: FsAdapter,
     dstFs: FsAdapter,
     req: TransferRequest,
-    session: Session,
+    session: AnySession,
     batchId: string
   ): Promise<void> {
     await dstFs.ensureDir(dstDir)
@@ -305,10 +370,12 @@ class TransferManager {
       item.size = srcStat.size
       meta.srcMtime = srcStat.mtime
 
+      // An S3 object cannot be appended to, so an upload over a shorter object starts over
+      const appendable = !(session instanceof S3Session && item.direction === 'upload')
       if (item.resumeFrom === undefined) {
         const dstStat = await dstFs.stat(item.dst).catch(() => null)
         if (dstStat) {
-          const decision = await this.decide(item, meta, srcStat.size, srcStat.mtime, dstStat.size, dstStat.mtime)
+          const decision = await this.decide(item, meta, srcStat.size, srcStat.mtime, dstStat.size, dstStat.mtime, appendable)
           if (decision === 'cancel') {
             this.cancelBatch(meta.batchId)
             item.status = 'cancelled'
@@ -318,7 +385,7 @@ class TransferManager {
             item.status = 'skipped'
             return
           }
-          if (decision === 'resume') {
+          if (decision === 'resume' && appendable) {
             if (dstStat.size < srcStat.size) item.resumeFrom = dstStat.size
             else {
               item.status = 'skipped'
@@ -328,7 +395,10 @@ class TransferManager {
         }
       }
 
-      if (item.direction === 'download') await this.downloadFile(session, item, ctrl)
+      if (session instanceof S3Session) {
+        if (item.direction === 'download') await this.downloadS3(session, item, ctrl, meta)
+        else await this.uploadS3(session, item, ctrl, meta)
+      } else if (item.direction === 'download') await this.downloadFile(session, item, ctrl)
       else await this.uploadFile(session, item, ctrl)
 
       if (ctrl.cancelled) {
@@ -371,7 +441,8 @@ class TransferManager {
     srcSize: number,
     srcMtime: number,
     dstSize: number,
-    dstMtime: number
+    dstMtime: number,
+    appendable = true
   ): Promise<BatchDecision> {
     const batchChoice = this.batchDecision.get(meta.batchId)
     if (batchChoice) return batchChoice
@@ -386,7 +457,7 @@ class TransferManager {
       dstSize,
       srcMtime,
       dstMtime,
-      canResume: dstSize < srcSize
+      canResume: appendable && dstSize < srcSize
     })
     if (a.applyToAll && a.action !== 'cancel') this.batchDecision.set(meta.batchId, a.action)
     return a.action
@@ -488,8 +559,10 @@ class TransferManager {
     item: TransferItem,
     start: number,
     size: number,
-    read: (buf: Buffer, off: number, len: number) => Promise<void>,
-    write: (buf: Buffer, off: number, len: number) => Promise<void>
+    read: (buf: Buffer, off: number, len: number, progress: (n: number) => void) => Promise<void>,
+    write: (buf: Buffer, off: number, len: number, progress: (n: number) => void) => Promise<void>,
+    chunk = CHUNK,
+    concurrency = CONCURRENT_CHUNKS
   ): Promise<number> {
     let next = start
     let committed = start
@@ -513,17 +586,26 @@ class TransferManager {
           if (ctrl.stop) return
           if (next >= size) return
           const off = next
-          const len = Math.min(CHUNK, size - off)
+          const len = Math.min(chunk, size - off)
           next += len
           const buf = Buffer.allocUnsafe(len)
-          await read(buf, off, len)
-          if (ctrl.stop) return
-          await write(buf, off, len)
-          item.transferred += len
+          // Large S3 chunks report progress while they travel; the rest is added once the chunk is done
+          let reported = 0
+          const progress = (n: number): void => {
+            reported += n
+            item.transferred += n
+          }
+          await read(buf, off, len, progress)
+          if (ctrl.stop) {
+            item.transferred -= reported
+            return
+          }
+          await write(buf, off, len, progress)
+          item.transferred += len - reported
           done.add(off)
           while (done.has(committed)) {
             done.delete(committed)
-            committed += CHUNK
+            committed += chunk
           }
         }
       } catch (e) {
@@ -532,13 +614,197 @@ class TransferManager {
       }
     }
 
-    const n = Math.max(1, Math.min(CONCURRENT_CHUNKS, Math.ceil((size - start) / CHUNK)))
+    const n = Math.max(1, Math.min(concurrency, Math.ceil((size - start) / chunk)))
     await Promise.all(Array.from({ length: n }, worker))
     if (firstError) {
       item.resumeFrom = committed
       throw firstError
     }
     return Math.min(committed, size)
+  }
+
+  /** One S3 request with its own retries; progress reported by a failed attempt is taken back */
+  private async s3Attempt<T>(ctrl: Ctrl, progress: (n: number) => void, run: (progress: (n: number) => void) => Promise<T>): Promise<T> {
+    for (let attempt = 1; ; attempt++) {
+      let reported = 0
+      try {
+        return await run((n) => {
+          reported += n
+          progress(n)
+        })
+      } catch (e) {
+        progress(-reported)
+        if (ctrl.stop || attempt >= S3_ATTEMPTS || s3ErrorInfo(e).status === 412) throw e
+        await new Promise((r) => setTimeout(r, 500 * attempt))
+      }
+    }
+  }
+
+  private async downloadS3(session: S3Session, item: TransferItem, ctrl: Ctrl, meta: Internal): Promise<void> {
+    const client = session.require()
+    const loc = parseS3Path(item.src)
+    if (!loc?.key) throw new Error(tr().main.fs.isFolder)
+    const size = item.size
+    let start = item.resumeFrom ?? 0
+    if (start > size) start = 0
+    const head = await client.send(new HeadObjectCommand({ Bucket: loc.bucket, Key: loc.key }), { abortSignal: ctrl.signal })
+    if (start > 0 && meta.s3ETag && head.ETag !== meta.s3ETag) start = 0
+    meta.s3ETag = head.ETag
+    let fd: FileHandle | undefined
+    try {
+      fd = await fsp.open(item.dst, start > 0 ? 'r+' : 'w')
+      if (start > 0) await fd.truncate(start)
+      item.transferred = start
+      const committed = await this.pump(
+        ctrl,
+        item,
+        start,
+        size,
+        (buf, off, len, progress) =>
+          this.s3Attempt(ctrl, progress, async (report) => {
+            let r
+            try {
+              r = await client.send(
+                new GetObjectCommand({ Bucket: loc.bucket, Key: loc.key, Range: `bytes=${off}-${off + len - 1}`, IfMatch: head.ETag }),
+                { abortSignal: ctrl.signal }
+              )
+            } catch (e) {
+              if (s3ErrorInfo(e).status === 412) throw new Error(tr().main.s3.changedDuringTransfer)
+              throw e
+            }
+            let got = 0
+            for await (const piece of r.Body as Readable) {
+              const bytes = piece as Buffer
+              if (got + bytes.length > len) throw new Error(tr().main.s3.changedDuringTransfer)
+              bytes.copy(buf, got)
+              got += bytes.length
+              report(bytes.length)
+            }
+            if (got !== len) throw new Error(tr().main.transfer.remoteShrank)
+          }),
+        async (buf, off, len) => {
+          await fd!.write(buf, 0, len, off)
+        },
+        S3_CHUNK,
+        S3_DOWNLOAD_CONCURRENCY
+      )
+      if (ctrl.stop) {
+        item.resumeFrom = committed
+        await fd.truncate(committed).catch(() => {})
+      }
+    } finally {
+      await fd?.close().catch(() => {})
+    }
+  }
+
+  private async uploadS3(session: S3Session, item: TransferItem, ctrl: Ctrl, meta: Internal): Promise<void> {
+    const client = session.require()
+    const loc = parseS3Path(item.dst)
+    if (!loc?.key) throw new Error(tr().main.fs.isFolder)
+    const size = item.size
+    const ContentType = contentTypeFor(loc.key)
+    const progress = (n: number): void => {
+      item.transferred += n
+    }
+
+    if (size < S3_MULTIPART_MIN) {
+      const data = await fsp.readFile(item.src)
+      item.transferred = 0
+      await this.s3Attempt(ctrl, progress, (report) =>
+        client.send(
+          new PutObjectCommand({ Bucket: loc.bucket, Key: loc.key, Body: countingBody(data, report), ContentLength: data.length, ContentType }),
+          { abortSignal: ctrl.signal }
+        )
+      )
+      item.resumeFrom = undefined
+      return
+    }
+
+    const partSize = Math.max(S3_PART, Math.ceil(size / S3_MAX_PARTS / MiB) * MiB)
+    let start = item.resumeFrom ?? 0
+    let up = meta.s3Upload
+    if (!up || start === 0 || up.partSize !== partSize || up.bucket !== loc.bucket || up.key !== loc.key) {
+      if (up) await this.abortS3Upload(up)
+      const r = await client.send(new CreateMultipartUploadCommand({ Bucket: loc.bucket, Key: loc.key, ContentType }), { abortSignal: ctrl.signal })
+      up = { sessionId: item.sessionId, uploadId: r.UploadId!, bucket: loc.bucket, key: loc.key, partSize, parts: new Map() }
+      meta.s3Upload = up
+      start = 0
+    }
+    start -= start % partSize
+    const upload = up
+    const fd = await fsp.open(item.src, 'r')
+    try {
+      item.transferred = start
+      await this.pump(
+        ctrl,
+        item,
+        start,
+        size,
+        async (buf, off, len) => {
+          let got = 0
+          while (got < len) {
+            const { bytesRead } = await fd.read(buf, got, len - got, off + got)
+            if (bytesRead === 0) throw new Error(tr().main.transfer.localShrank)
+            got += bytesRead
+          }
+        },
+        async (buf, off, len, report) => {
+          const PartNumber = off / partSize + 1
+          const r = await this.s3Attempt(ctrl, report, (attemptReport) =>
+            client.send(
+              new UploadPartCommand({
+                Bucket: upload.bucket,
+                Key: upload.key,
+                UploadId: upload.uploadId,
+                PartNumber,
+                Body: countingBody(buf.subarray(0, len), attemptReport),
+                ContentLength: len
+              }),
+              { abortSignal: ctrl.signal }
+            )
+          )
+          upload.parts.set(PartNumber, r.ETag!)
+        },
+        partSize,
+        partSize > 64 * MiB ? 2 : S3_UPLOAD_CONCURRENCY
+      )
+      if (ctrl.cancelled) return
+      const total = Math.ceil(size / partSize)
+      await client.send(
+        new CompleteMultipartUploadCommand({
+          Bucket: upload.bucket,
+          Key: upload.key,
+          UploadId: upload.uploadId,
+          MultipartUpload: { Parts: Array.from({ length: total }, (_, i) => ({ PartNumber: i + 1, ETag: upload.parts.get(i + 1) })) }
+        })
+      )
+      meta.s3Upload = undefined
+      item.resumeFrom = undefined
+    } finally {
+      await fd.close().catch(() => {})
+      if (ctrl.cancelled && meta.s3Upload) {
+        await this.abortS3Upload(meta.s3Upload)
+        meta.s3Upload = undefined
+        item.resumeFrom = undefined
+      }
+    }
+  }
+
+  /** Drops the uploaded parts; S3 bills for them until the upload is completed or aborted */
+  private async abortS3Upload(up: S3Upload): Promise<void> {
+    const s = sessions.get(up.sessionId)
+    if (!(s instanceof S3Session) || !s.isConnected) return
+    try {
+      await s.require().send(new AbortMultipartUploadCommand({ Bucket: up.bucket, Key: up.key, UploadId: up.uploadId }))
+    } catch {
+      /* already gone, or the session lost access */
+    }
+  }
+
+  /** Called on quit: unfinished uploads would otherwise keep their parts on S3 */
+  async abortPendingS3Uploads(): Promise<void> {
+    const pending = [...this.internal.values()].map((m) => m.s3Upload).filter((u): u is S3Upload => !!u)
+    await Promise.all(pending.map((u) => this.abortS3Upload(u)))
   }
 
   pause(id: string): void {
@@ -592,6 +858,8 @@ class TransferManager {
     const it = this.items.find((i) => i.id === id)
     if (!it || it.status === 'running') return
     this.items = this.items.filter((i) => i.id !== id)
+    const up = this.internal.get(id)?.s3Upload
+    if (up) void this.abortS3Upload(up)
     this.internal.delete(id)
     this.emit()
   }
@@ -599,8 +867,10 @@ class TransferManager {
   clearFinished(): void {
     const keep = new Set(['running', 'queued', 'paused', 'scanning'])
     this.items = this.items.filter((i) => keep.has(i.status))
-    for (const id of [...this.internal.keys()]) {
-      if (!this.items.some((i) => i.id === id)) this.internal.delete(id)
+    for (const [id, m] of [...this.internal.entries()]) {
+      if (this.items.some((i) => i.id === id)) continue
+      if (m.s3Upload) void this.abortS3Upload(m.s3Upload)
+      this.internal.delete(id)
     }
     this.emit()
   }

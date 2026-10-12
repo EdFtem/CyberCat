@@ -109,8 +109,9 @@ app.on('before-quit', (e) => {
   tails.stopAll()
   watches.stopAll()
   tunnels.stopAll()
-  externalEditor
-    .closeAll()
+  // Unfinished S3 uploads are aborted before the sessions close, capped so a dead network cannot hold the quit
+  const abortUploads = Promise.race([transfers.abortPendingS3Uploads(), new Promise((r) => setTimeout(r, 4000))])
+  Promise.all([externalEditor.closeAll(), abortUploads])
     .catch(() => {})
     .finally(() => {
       sessions.disconnectAll()

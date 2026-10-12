@@ -19,6 +19,8 @@ import { watches } from './sync/WatchService'
 import * as docker from './docker/DockerService'
 import { tunnels } from './tunnel/TunnelService'
 import { updater } from './updater'
+import { presignS3 } from './s3/presign'
+import { listAwsProfiles } from './s3/awsConfig'
 import type { AppInfo } from '@shared/api'
 import type {
   AppSettings,
@@ -110,12 +112,12 @@ export function registerIpc(): void {
   handle('session:remove', (id: string) => sessions.remove(id))
   handle('session:list', () => sessions.list())
   handle('session:sudo', async (id: string, enable: boolean) => {
-    const s = sessions.require(id)
+    const s = sessions.requireSsh(id)
     if (enable) await s.enableSudo()
     else s.disableSudo()
     return s.info
   })
-  handle('session:exec', (id: string, cmd: string) => sessions.require(id).exec(cmd, 300_000))
+  handle('session:exec', (id: string, cmd: string) => sessions.requireSsh(id).exec(cmd, 300_000))
 
   // ---- fs
   handle('fs:list', async (target: Target, path: string) => {
@@ -240,6 +242,10 @@ export function registerIpc(): void {
   handle('tunnel:start', (sid: string, host: string, port: number) => tunnels.start(sid, host, port))
   handle('tunnel:stop', (id: string) => tunnels.stop(id))
   handle('tunnel:list', () => tunnels.list())
+
+  // ---- s3
+  handle('s3:presign', (id: string, path: string, expiresIn: number) => presignS3(id, path, expiresIn))
+  handle('s3:awsProfiles', () => listAwsProfiles())
 
   // ---- updates
   handle('update:status', () => updater.status())

@@ -60,6 +60,7 @@ CyberCat checks [GitHub Releases](https://github.com/EdFtem/CyberCat/releases) s
 - **Custom commands**: your own commands with `%f` `%n` `%d` placeholders in the server context menu, with the output shown in a dialog.
 - **Bookmarks** for local and remote folders.
 - **Docker**: containers with live CPU and memory, health and ports; start, stop, restart, pause and remove; logs in the log viewer; a shell inside a container; a readable inspect view that jumps to bind mounts on the host; compose projects with up, down, restart, pull and opening the compose file; images and volumes with cleanup. Works through the docker or podman CLI over the same SSH session and suggests sudo mode when the Docker socket is not accessible.
+- **S3 buckets**: connect to Amazon S3 or any S3-compatible service (MinIO, Cloudflare R2, DigitalOcean Spaces, Backblaze B2, Wasabi) with an access key or a named profile from `~/.aws`, including SSO and assumed roles. Buckets and folders browse like any server, uploads go in parts and resume after a pause or an error, downloads resume from the last byte, edited objects keep their content type and metadata, folder compare uses the object ETag, and "Share link" creates a presigned download URL valid for up to 7 days.
 - **Port tunnels**: click a container's published port to open it in your browser through an SSH tunnel; active tunnels are listed in the title bar.
 - **Auto-reconnect** with keepalive and a persistent transfer queue.
 
@@ -130,6 +131,15 @@ docker run -d --name cybercat-sshd -p 2222:2222 -e PUID=1000 -e PGID=1000 \
 
 npm run test:e2e     # backend: SFTP, editor, transfers, shell
 npm run test:ui      # UI screenshots into out/shots/
+```
+
+The S3 test runs against a local S3 server, or any S3 service through `CC_S3_ENDPOINT`, `CC_S3_BUCKET`, `CC_S3_KEY_ID` and `CC_S3_SECRET`:
+
+```bash
+docker run -d --name cybercat-s3 -p 9090:9090 \
+  -e COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=cybercat-test adobe/s3mock:4.7.0
+
+npm run test:e2e:s3  # S3: browsing, editing, multipart transfers, compare, share links
 ```
 
 The ProxyJump and Docker scenarios need more setup on the test server: a second bastion container on port 2223 with `AllowTcpForwarding yes` in its sshd_config, plus `-v /var/run/docker.sock:/var/run/docker.sock` and `docker-cli` installed in the sshd container. The variables `CC_TEST_JUMP=cat@127.0.0.1:2223` and `CC_TEST_TARGET=<container ip>:2222` enable the ProxyJump checks; without them those sections are skipped.

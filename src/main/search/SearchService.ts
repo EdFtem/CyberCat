@@ -33,9 +33,10 @@ export async function runSearch(req: SearchRequest): Promise<SearchResponse> {
 
   if (req.target !== 'local') {
     const session = sessions.require(req.target)
-    if (session.info.hasShell) return shellSearch(session, req, name, content, max)
+    const ssh = sessions.getSsh(req.target)
+    if (ssh?.info.hasShell) return shellSearch(ssh, req, name, content, max)
     const r = await walkSearch(getFs(req.target), req, name, content, max)
-    if (content) r.warning = tr().main.search.sftpContentWarning
+    if (content) r.warning = session.info.kind === 's3' ? tr().main.search.s3ContentWarning : tr().main.search.sftpContentWarning
     return r
   }
   return walkSearch(getFs('local'), req, name, content, max)

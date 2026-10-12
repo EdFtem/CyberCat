@@ -7,7 +7,7 @@ import { shell } from 'electron'
 import { broadcast, toast } from '../broadcast'
 import { bus } from '../bus'
 import { sessions } from '../ssh/SessionManager'
-import { RemoteFs } from '../fs/RemoteFs'
+import { sessionFs } from '../fs'
 import { settings } from '../store/settings'
 import { tr } from '../i18n'
 import type { ExternalEdit } from '@shared/types'
@@ -60,7 +60,7 @@ class ExternalEditorService {
       return existing
     }
 
-    const remote = new RemoteFs(session)
+    const remote = sessionFs(session)
     const hash = createHash('sha1').update(`${session.info.host}:${remotePath}`).digest('hex').slice(0, 10)
     const dir = join(tmpdir(), 'cybercat', hash)
     await fsp.mkdir(dir, { recursive: true })
@@ -129,7 +129,7 @@ class ExternalEditorService {
     this.emit()
     try {
       const session = sessions.require(edit.sessionId)
-      const remote = new RemoteFs(session)
+      const remote = sessionFs(session)
       const data = await fsp.readFile(edit.localPath)
       await remote.writeFileAtomic(edit.remotePath, data)
       edit.uploads++

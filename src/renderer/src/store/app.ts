@@ -109,6 +109,7 @@ export type Dialog =
   | { kind: 'dockerInspect'; sessionId: string; container: DockerContainer }
   | { kind: 'about' }
   | { kind: 'shortcuts' }
+  | { kind: 's3Link'; sessionId: string; entry: FileEntry }
 
 export interface ClipboardState {
   sid: string

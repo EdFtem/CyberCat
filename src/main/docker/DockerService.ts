@@ -61,7 +61,7 @@ export function parsePorts(spec: string): DockerPort[] {
 }
 
 export async function detectDocker(sessionId: string, force = false): Promise<DockerInfo> {
-  const s = sessions.require(sessionId)
+  const s = sessions.requireSsh(sessionId)
   const cached = infoCache.get(sessionId)
   if (!force && cached && Date.now() - cached.at < INFO_TTL && cached.sudo === s.sudoActive) return cached.info
   const info = await detectUncached(s)
@@ -97,7 +97,7 @@ async function detectUncached(s: Session): Promise<DockerInfo> {
 }
 
 async function cliFor(sessionId: string): Promise<{ s: Session; cli: string }> {
-  const s = sessions.require(sessionId)
+  const s = sessions.requireSsh(sessionId)
   const info = await detectDocker(sessionId)
   if (!info.available || info.error) throw new Error(info.error ?? tr().main.docker.unavailable)
   return { s, cli: info.cli }

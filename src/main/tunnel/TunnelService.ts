@@ -30,14 +30,14 @@ class TunnelService {
   }
 
   async start(sessionId: string, remoteHost: string, remotePort: number, localPort = 0): Promise<Tunnel> {
-    sessions.require(sessionId)
+    sessions.requireSsh(sessionId)
     for (const t of this.tunnels.values()) {
       if (t.info.sessionId === sessionId && t.info.remoteHost === remoteHost && t.info.remotePort === remotePort) return t.info
     }
     const sockets = new Set<net.Socket>()
     const id = randomUUID()
     const server = net.createServer((sock) => {
-      const session = sessions.get(sessionId)
+      const session = sessions.getSsh(sessionId)
       const client = session?.client
       if (!client || !session?.isConnected) {
         sock.destroy()

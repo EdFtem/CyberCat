@@ -49,6 +49,7 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
   const [localDir, setLocalDir] = useState(ui?.panes.local.path ?? '')
   const [remoteDir, setRemoteDir] = useState(ui?.panes.remote.path ?? '')
   const [byHash, setByHash] = useState(false)
+  const isS3 = useApp((s) => s.sessions[sessionId]?.kind === 's3')
   const [busy, setBusy] = useState(false)
   const [applying, setApplying] = useState(false)
   const [res, setRes] = useState<CompareResult | null>(null)
@@ -179,7 +180,7 @@ export function CompareDialog({ sessionId, close }: { sessionId: string; close: 
         </Button>
       </div>
       <div className="mt-2 flex items-center gap-5 text-[12.5px]">
-        <Checkbox checked={byHash} onChange={setByHash} label={t.compare.byHash} />
+        <Checkbox checked={byHash} onChange={setByHash} label={isS3 ? t.compare.byHashS3 : t.compare.byHash} />
       </div>
 
       {error && <div className="mt-3 text-[12.5px] text-danger">{error}</div>}

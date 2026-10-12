@@ -1,7 +1,8 @@
 import { createHash } from 'crypto'
 import { createReadStream } from 'fs'
 import { sessions } from '../ssh/SessionManager'
-import { localFs, RemoteFs } from '../fs'
+import { Session } from '../ssh/Session'
+import { localFs, sessionFs } from '../fs'
 import type { FsAdapter } from '../fs/types'
 import { shq } from '../fs/sftpUtil'
 import type { CompareEntry, CompareRequest, CompareResult, FileEntry } from '@shared/types'
@@ -36,9 +37,11 @@ async function walk(fs: FsAdapter, root: string, out: Map<string, FileEntry>, st
   }
 }
 
-function sha256Local(path: string): Promise<string> {
+const MD5_ETAG = /^[0-9a-f]{32}$/
+
+function hashLocal(path: string, algorithm: 'sha256' | 'md5' = 'sha256'): Promise<string> {
   return new Promise((resolve, reject) => {
-    const h = createHash('sha256')
+    const h = createHash(algorithm)
     createReadStream(path)
       .on('data', (d) => h.update(d))
       .on('end', () => resolve(h.digest('hex')))
@@ -48,7 +51,8 @@ function sha256Local(path: string): Promise<string> {
 
 export async function runCompare(req: CompareRequest): Promise<CompareResult> {
   const session = sessions.require(req.sessionId)
-  const remote = new RemoteFs(session)
+  const ssh = session instanceof Session ? session : undefined
+  const remote = sessionFs(session)
   const L = new Map<string, FileEntry>()
   const R = new Map<string, FileEntry>()
   const sL: WalkState = { count: 0, truncated: false }
@@ -58,6 +62,8 @@ export async function runCompare(req: CompareRequest): Promise<CompareResult> {
   const entries: CompareEntry[] = []
   const counts = { onlyLocal: 0, onlyRemote: 0, different: 0, same: 0 }
   const hashCandidates: string[] = []
+  /** S3 objects whose ETag is the MD5 of their content */
+  const etagCandidates: string[] = []
   const side = (e: FileEntry): { size: number; mtime: number } => ({ size: e.size, mtime: e.mtime })
 
   for (const k of [...new Set([...L.keys(), ...R.keys()])].sort()) {
@@ -78,8 +84,18 @@ export async function runCompare(req: CompareRequest): Promise<CompareResult> {
       } else if (l.size !== r.size) {
         counts.different++
         entries.push({ rel: k, kind: 'file', status: 'different', reason: 'size', newer: l.mtime >= r.mtime ? 'local' : 'remote', local: side(l), remote: side(r) })
-      } else if (req.byHash && session.info.hasShell) {
+      } else if (req.byHash && ssh?.info.hasShell) {
         hashCandidates.push(k)
+      } else if (req.byHash && !ssh && r.etag && MD5_ETAG.test(r.etag)) {
+        etagCandidates.push(k)
+      } else if (!ssh) {
+        // S3 sets LastModified to the upload time, so like aws s3 sync only a local change after the upload counts
+        if (l.mtime > r.mtime + MTIME_TOLERANCE_MS) {
+          counts.different++
+          entries.push({ rel: k, kind: 'file', status: 'different', reason: 'mtime', newer: 'local', local: side(l), remote: side(r) })
+        } else {
+          counts.same++
+        }
       } else if (Math.abs(l.mtime - r.mtime) > MTIME_TOLERANCE_MS) {
         counts.different++
         entries.push({ rel: k, kind: 'file', status: 'different', reason: 'mtime', newer: l.mtime > r.mtime ? 'local' : 'remote', local: side(l), remote: side(r) })
@@ -90,19 +106,35 @@ export async function runCompare(req: CompareRequest): Promise<CompareResult> {
   }
 
   let hashed = false
-  if (hashCandidates.length) {
+  for (const rel of etagCandidates) {
+    hashed = true
+    const l = L.get(rel)!
+    const r = R.get(rel)!
+    let localMd5 = '?'
+    try {
+      localMd5 = await hashLocal(localFs.join(req.localDir, ...rel.split('/')), 'md5')
+    } catch {
+      /* unreadable file */
+    }
+    if (localMd5 === r.etag) counts.same++
+    else {
+      counts.different++
+      entries.push({ rel, kind: 'file', status: 'different', reason: 'hash', newer: l.mtime >= r.mtime ? 'local' : 'remote', local: side(l), remote: side(r) })
+    }
+  }
+  if (hashCandidates.length && ssh) {
     hashed = true
     for (let i = 0; i < hashCandidates.length; i += HASH_BATCH) {
       const chunk = hashCandidates.slice(i, i + HASH_BATCH)
       const loop = chunk.map((rel) => shq(rel)).join(' ')
-      const r = await session.exec(`cd ${shq(req.remoteDir)} && for f in ${loop}; do sha256sum -- "$f" 2>/dev/null || echo "- -"; done`, 600_000)
+      const r = await ssh.exec(`cd ${shq(req.remoteDir)} && for f in ${loop}; do sha256sum -- "$f" 2>/dev/null || echo "- -"; done`, 600_000)
       const lines = r.stdout.split('\n').filter((x) => x.length)
       for (let j = 0; j < chunk.length; j++) {
         const rel = chunk[j]
         const remoteHash = lines[j]?.split(/\s+/)[0] ?? '-'
         let localHash = '?'
         try {
-          localHash = await sha256Local(localFs.join(req.localDir, ...rel.split('/')))
+          localHash = await hashLocal(localFs.join(req.localDir, ...rel.split('/')))
         } catch {
           /* unreadable file */
         }

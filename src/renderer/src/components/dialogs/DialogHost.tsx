@@ -14,6 +14,8 @@ import { CompareDialog } from './CompareDialog'
 import { MassRenameDialog } from './MassRenameDialog'
 import { CommandDialog } from './CommandDialog'
 import { DockerInspectDialog } from './DockerInspectDialog'
+import { S3LinkDialog } from './S3LinkDialog'
+import { s3Uri } from '@/lib/session'
 import type { FileEntry, Target } from '@shared/types'
 
 export function DialogHost() {
@@ -47,6 +49,8 @@ export function DialogHost() {
       return <AboutDialog close={close} />
     case 'shortcuts':
       return <ShortcutsDialog close={close} />
+    case 's3Link':
+      return <S3LinkDialog sessionId={dialog.sessionId} entry={dialog.entry} close={close} />
     default:
       return null
   }
@@ -263,15 +267,17 @@ function ChmodDialog({ d, close }: { d: Extract<Dialog, { kind: 'chmod' }>; clos
 function PropertiesDialog({ target, entry, close }: { target: Target; entry: FileEntry; close: () => void }) {
   const t = useT()
   const p = t.dialogs
+  const s3 = useApp((s) => target !== 'local' && s.sessions[target]?.kind === 's3')
   const rows: [string, React.ReactNode][] = [
     [p.propPath, <span className="font-mono text-[12px] break-all select-text">{entry.path}</span>],
+    ...(s3 ? ([[p.propS3Uri, <span className="font-mono text-[12px] break-all select-text">{s3Uri(entry.path)}</span>]] as [string, React.ReactNode][]) : []),
     [p.propType, entry.isDrive ? p.propDrive : entry.isSymlink ? (entry.isDir ? p.propSymlinkToFolder : p.propSymlink) : entry.isDir ? p.propFolder : p.propFile],
     ...(entry.linkTarget ? ([[p.propTarget, <span className="font-mono text-[12px] break-all select-text">{entry.linkTarget}</span>]] as [string, React.ReactNode][]) : []),
     [p.propSize, entry.isDir ? '—' : `${formatBytes(entry.size)} (${p.propBytes(formatNumber(entry.size))})`],
     [p.propModified, formatDateFull(entry.mtime)],
-    [p.propPermissions, <span className="font-mono">{modeToString(entry.mode)} ({modeToOctal(entry.mode)})</span>],
+    ...(s3 ? [] : ([[p.propPermissions, <span className="font-mono">{modeToString(entry.mode)} ({modeToOctal(entry.mode)})</span>]] as [string, React.ReactNode][])),
     ...(entry.owner ? ([[p.propOwner, `${entry.owner}${entry.group ? `:${entry.group}` : ''}`]] as [string, React.ReactNode][]) : []),
-    [p.propLocation, target === 'local' ? p.propLocalComputer : p.propServer]
+    [p.propLocation, target === 'local' ? p.propLocalComputer : s3 ? p.propBucket : p.propServer]
   ]
   return (
     <Modal title={entry.name} width={480} onClose={close} footer={<Button variant="primary" onClick={close}>{t.common.close}</Button>}>

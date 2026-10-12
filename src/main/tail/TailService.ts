@@ -71,8 +71,9 @@ class TailService {
     this.tails.set(id, rec)
     try {
       if (sessionId) {
-        const session = sessions.require(sessionId)
-        if (session.info.hasShell && (await this.startExec(id, rec, session, path, lines))) return id
+        sessions.require(sessionId)
+        const ssh = sessions.getSsh(sessionId)
+        if (ssh?.info.hasShell && (await this.startExec(id, rec, ssh, path, lines))) return id
       }
       await this.startPoll(id, rec, target, path, lines)
       return id
@@ -84,7 +85,7 @@ class TailService {
 
   /** Arbitrary command with streaming output (e.g. docker logs -f) */
   async startCommand(sessionId: string, cmd: string): Promise<string> {
-    const session = sessions.require(sessionId)
+    const session = sessions.requireSsh(sessionId)
     if (!session.info.hasShell) throw new Error(tr().main.exec.shellRequired)
     const id = randomUUID()
     const rec: Tail = { sessionId, chunks: [], bytes: 0, nextSeq: 1, stop: () => {}, stopped: false }

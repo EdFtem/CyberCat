@@ -241,6 +241,11 @@ export const ops = {
     S().openDialog({ kind: 'chmod', sessionId: sid, pane, target: paneTarget(sid, pane), entries })
   },
 
+  /** Presigned download link for an S3 object */
+  shareLink(sid: string, entry: FileEntry): void {
+    S().openDialog({ kind: 's3Link', sessionId: sid, entry })
+  },
+
   properties(sid: string, pane: PaneId, entry: FileEntry): void {
     S().openDialog({ kind: 'properties', target: paneTarget(sid, pane), entry })
   },

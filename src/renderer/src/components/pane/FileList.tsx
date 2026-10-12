@@ -72,6 +72,8 @@ export function FileList({
   const visible = useVisibleEntries(sid, pane)
   const target = paneTarget(sid, pane)
   const isRemote = pane === 'remote'
+  // S3 objects have no permissions or owner
+  const s3 = useApp((s) => isRemote && s.sessions[sid]?.kind === 's3')
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -358,8 +360,8 @@ export function FileList({
   const slice = visible.slice(startIdx, endIdx)
   // Narrow panes keep the name readable by dropping secondary columns first
   const cols: Columns = {
-    owner: isRemote && width >= 620,
-    mode: width >= 500,
+    owner: isRemote && !s3 && width >= 620,
+    mode: !s3 && width >= 500,
     mtime: width >= 380
   }
   const gridCols = ['minmax(0,1fr)', '76px', cols.mtime && '128px', cols.mode && '92px', cols.owner && '110px'].filter(Boolean).join(' ')
@@ -551,7 +553,7 @@ function Row({
         )}
       </div>
       <span className="text-right text-[12px] text-muted tabular-nums whitespace-nowrap">{entry.isDir ? '' : formatBytes(entry.size)}</span>
-      {cols.mtime && <span className="text-[12px] text-muted tabular-nums truncate">{entry.isDrive ? '' : formatDate(entry.mtime)}</span>}
+      {cols.mtime && <span className="text-[12px] text-muted tabular-nums truncate">{entry.isDrive || (entry.isDir && !entry.mtime) ? '' : formatDate(entry.mtime)}</span>}
       {cols.mode && <span className="text-[11.5px] text-dim font-mono truncate">{entry.isDrive ? '' : modeToString(entry.mode)}</span>}
       {cols.owner && (
         <span className="text-[12px] text-dim truncate">

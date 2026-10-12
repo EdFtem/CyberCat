@@ -32,13 +32,16 @@ import {
   ClipboardPaste,
   Scissors,
   Play,
-  TextCursorInput
+  TextCursorInput,
+  Cloud,
+  Link2
 } from 'lucide-react'
 import { useApp, paneTarget, type PaneId } from '@/store/app'
 import { ops, selectedEntries, parseCustomCommands } from '@/lib/ops'
 import { formatBytes } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/cn'
+import { s3ServiceLabel, s3Uri } from '@/lib/session'
 import type { FileEntry } from '@shared/types'
 import { IconButton, Spinner, Badge } from '../ui'
 import { PathBar } from './PathBar'
@@ -75,6 +78,8 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
   const selected = useMemo(() => (paneState ? selectedEntries({ ...paneState, entries: visible }) : []), [paneState, visible])
   const selectedSize = selected.reduce((s, e) => s + (e.isDir ? 0 : e.size), 0)
   const sudoActive = isRemote && !!session?.sudo
+  /** S3 bucket pane: no permissions, sudo, terminal or shell commands */
+  const s3 = isRemote && session?.kind === 's3'
   const hiddenCount = showHidden || !paneState ? 0 : paneState.entries.filter((e) => e.name.startsWith('.') && !e.isDrive).length
 
   if (!paneState) return null
@@ -116,10 +121,13 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         ...(isRemote ? [{ label: t.pane.compareWithLocalMenu, icon: <GitCompareArrows size={14} />, onClick: () => ops.compare(sid) } as MenuItem] : []),
         { label: t.pane.showHidden, checked: showHidden, shortcut: 'Ctrl+H', onClick: () => void updateSettings({ showHidden: !showHidden }) },
         { type: 'separator' },
-        ...(isRemote
-          ? [{ label: t.pane.openTerminalHere, icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, cur.path) } as MenuItem]
-          : [{ label: t.pane.showInFileManager, icon: <SquareArrowOutUpRight size={14} />, onClick: () => void window.api.app.openPath(cur.path) } as MenuItem]),
-        { label: t.pane.copyFolderPath, icon: <Copy size={14} />, onClick: () => void navigator.clipboard.writeText(cur.path) }
+        ...(s3
+          ? []
+          : isRemote
+            ? [{ label: t.pane.openTerminalHere, icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, cur.path) } as MenuItem]
+            : [{ label: t.pane.showInFileManager, icon: <SquareArrowOutUpRight size={14} />, onClick: () => void window.api.app.openPath(cur.path) } as MenuItem]),
+        { label: t.pane.copyFolderPath, icon: <Copy size={14} />, onClick: () => void navigator.clipboard.writeText(cur.path) },
+        ...(s3 && cur.path !== '/' ? [{ label: t.pane.copyS3Uri, icon: <Copy size={14} />, onClick: () => void navigator.clipboard.writeText(s3Uri(cur.path)) } as MenuItem] : [])
       ]
     }
     const items: MenuItem[] = []
@@ -127,7 +135,9 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
       items.push({ label: entry.isDir ? t.common.open : t.pane.openInEditor, icon: <FilePen size={14} />, shortcut: 'Enter', onClick: () => ops.openEntry(sid, pane, entry) })
       if (!entry.isDir && isRemote) items.push({ label: t.pane.editExternal, icon: <SquareArrowOutUpRight size={14} />, shortcut: 'Shift+F4', onClick: () => ops.editExternal(sid, pane, entry) })
       if (!entry.isDir && !isRemote) items.push({ label: t.pane.openWithSystem, icon: <SquareArrowOutUpRight size={14} />, onClick: () => void window.api.app.openPath(entry.path) })
-      if (!entry.isDir) items.push({ label: t.pane.followLog, icon: <ScrollText size={14} />, onClick: () => ops.tailLog(sid, pane, entry) })
+      // S3 objects are replaced, never appended to, so following one as a log makes no sense
+      if (!entry.isDir && !s3) items.push({ label: t.pane.followLog, icon: <ScrollText size={14} />, onClick: () => ops.tailLog(sid, pane, entry) })
+      if (!entry.isDir && s3) items.push({ label: t.pane.shareLink, icon: <Link2 size={14} />, onClick: () => ops.shareLink(sid, entry) })
       if (!isRemote && !entry.isDrive) items.push({ label: t.pane.showInFileManager, icon: <FolderInput size={14} />, onClick: () => ops.revealLocal(entry) })
       items.push({ type: 'separator' })
     }
@@ -155,9 +165,10 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
     if (many) items.push({ label: t.pane.batchRename, icon: <TextCursorInput size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.massRename(sid, pane, actOn) })
     items.push({ label: t.common.delete, icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.deleteEntries(sid, pane, actOn) })
     items.push({ type: 'separator' })
-    items.push({ label: t.pane.permissionsMenu, icon: <ShieldCheck size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.chmod(sid, pane, actOn) })
+    if (!s3) items.push({ label: t.pane.permissionsMenu, icon: <ShieldCheck size={14} />, disabled: actOn.some((e) => e.isDrive), onClick: () => ops.chmod(sid, pane, actOn) })
     items.push({ label: t.pane.copyPath, icon: <Copy size={14} />, shortcut: 'Ctrl+Shift+C', onClick: () => ops.copyPath(actOn) })
-    if (isRemote && entry.isDir && !many) items.push({ label: t.pane.openTerminalHere, icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, entry.path) })
+    if (s3) items.push({ label: t.pane.copyS3Uri, icon: <Copy size={14} />, onClick: () => void navigator.clipboard.writeText(actOn.map((e) => s3Uri(e.path)).join('\n')) })
+    if (isRemote && !s3 && entry.isDir && !many) items.push({ label: t.pane.openTerminalHere, icon: <Terminal size={14} />, onClick: () => ops.openTerminalHere(sid, entry.path) })
     if (!many) items.push({ label: t.pane.properties, icon: <Info size={14} />, onClick: () => ops.properties(sid, pane, entry) })
     if (customCommands.length) {
       items.push({ type: 'separator' })
@@ -231,10 +242,10 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
             'inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[12px] font-medium shrink-0',
             isRemote ? 'bg-accent-soft text-accent' : 'bg-surface-3 text-muted'
           )}
-          title={isRemote ? `${session?.username}@${session?.host}` : t.pane.localComputer}
+          title={isRemote ? (s3 ? `${session?.username} · ${session?.host}` : `${session?.username}@${session?.host}`) : t.pane.localComputer}
         >
-          {isRemote ? <Server size={13} /> : <Laptop size={13} />}
-          {isRemote ? session?.host ?? t.common.server : t.common.local}
+          {s3 ? <Cloud size={13} /> : isRemote ? <Server size={13} /> : <Laptop size={13} />}
+          {isRemote ? (s3 ? s3ServiceLabel(session?.host ?? '') : session?.host ?? t.common.server) : t.common.local}
         </span>
         {isRemote && session?.sudo && (
           <span title={session.sudoFiles ? t.pane.sudoFilesTitle : t.pane.sudoCommandsTitle}>
@@ -284,28 +295,32 @@ export function FilePane({ sid, pane }: { sid: string; pane: PaneId }) {
         <IconButton title={t.pane.deleteHint} disabled={!selected.length} danger onClick={() => ops.deleteEntries(sid, pane, selected)}>
           <Trash2 size={15} />
         </IconButton>
-        <IconButton title={t.pane.permissions} disabled={!selected.length} onClick={() => ops.chmod(sid, pane, selected)}>
-          <ShieldCheck size={15} />
-        </IconButton>
+        {!s3 && (
+          <IconButton title={t.pane.permissions} disabled={!selected.length} onClick={() => ops.chmod(sid, pane, selected)}>
+            <ShieldCheck size={15} />
+          </IconButton>
+        )}
         <span className="flex-1" />
+        {isRemote && !s3 && (
+          <IconButton
+            title={session?.sudo ? t.pane.sudoOff : t.pane.sudoOn}
+            active={!!session?.sudo}
+            danger={!!session?.sudo}
+            disabled={!session?.hasShell || session?.status !== 'connected'}
+            onClick={() => void toggleSudo(sid)}
+          >
+            <ShieldAlert size={15} />
+          </IconButton>
+        )}
         {isRemote && (
-          <>
-            <IconButton
-              title={session?.sudo ? t.pane.sudoOff : t.pane.sudoOn}
-              active={!!session?.sudo}
-              danger={!!session?.sudo}
-              disabled={!session?.hasShell || session?.status !== 'connected'}
-              onClick={() => void toggleSudo(sid)}
-            >
-              <ShieldAlert size={15} />
-            </IconButton>
-            <IconButton title={t.pane.compareWithLocal} onClick={() => ops.compare(sid)}>
-              <GitCompareArrows size={15} />
-            </IconButton>
-            <IconButton title={t.pane.terminalHere} onClick={() => ops.openTerminalHere(sid, paneState.path)}>
-              <Terminal size={15} />
-            </IconButton>
-          </>
+          <IconButton title={t.pane.compareWithLocal} onClick={() => ops.compare(sid)}>
+            <GitCompareArrows size={15} />
+          </IconButton>
+        )}
+        {isRemote && !s3 && (
+          <IconButton title={t.pane.terminalHere} onClick={() => ops.openTerminalHere(sid, paneState.path)}>
+            <Terminal size={15} />
+          </IconButton>
         )}
         <IconButton title={t.pane.searchHint} onClick={() => ops.search(sid, pane)}>
           <FileSearch size={15} />
